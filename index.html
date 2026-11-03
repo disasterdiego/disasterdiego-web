@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>disasterdiego — art direction, design, content</title>
+  <meta name="description" content="Portfolio de disasterdiego: dirección de arte, publicidad, diseño y contenido.">
+  <meta name="theme-color" content="#eeeeeb">
+  <meta property="og:title" content="disasterdiego">
+  <meta property="og:description" content="Advertising, design and content.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23f3f2ee'/%3E%3Cpath d='M10 10l12 12M22 10L10 22' stroke='%23111' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://res.cloudinary.com">
+  <link rel="preconnect" href="https://images.unsplash.com">
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Syne+Mono&family=Big+Shoulders+Display:wght@700&family=Pirata+One&family=Major+Mono+Display&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body class="is-loading">
+  <a class="skip" href="#view">Saltar al contenido</a>
+
+  <main id="view" class="view" tabindex="-1"></main>
+  <canvas class="fx" id="fx" aria-hidden="true"></canvas>
+  <div class="scrim" id="scrim"></div>
+
+  <!-- MENÚ: flotante, arriba en desktop y abajo en móvil -->
+  <header class="bar" id="bar">
+    <div class="bar__row">
+      <a class="bar__brand" href="#/" data-cursor-ui>disasterdiego</a>
+      <div class="bar__slot" id="bar-slot"></div>
+      <button class="bar__toggle" id="menu-toggle" type="button" aria-expanded="false" aria-controls="panel" data-cursor-ui>
+        <span class="bar__label" id="menu-label">Menu</span>
+        <span class="bar__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+    </div>
+    <nav class="panel" id="panel" aria-label="Principal" inert></nav>
+  </header>
+
+  <!-- Contacto siempre a mano -->
+  <nav class="social" id="socials" aria-label="Contacto"></nav>
+
+  <canvas class="paper" id="paper" aria-hidden="true"></canvas>
+  <div class="paper-label" id="paper-label" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="loader" id="loader" aria-hidden="true"><span id="loader-count">000</span></div>
+  <div class="cring cring--r" id="cring-r" aria-hidden="true"></div>
+  <div class="cring cring--b" id="cring-b" aria-hidden="true"></div>
+  <div class="cursor" id="cursor" aria-hidden="true"></div>
+  <noscript><p style="padding:2rem 1rem">Esta web necesita JavaScript para mostrar el portfolio.</p></noscript>
+</body>
+</html>
