@@ -9,19 +9,27 @@ void main(){
   vec2 uv = vec2(vUv.x,1.-vUv.y);
   vec2 p = (uv-uMouse)*vec2(uSize.x/uSize.y,1.);
   float d = length(p);
-  float R = .46;
+  float R = .4;
   float f = uAmt*smoothstep(R,0.,d);
   float wob = sin(d*26.-uT*2.2)*.0035*f;
-  vec2 q = uv-(uv-uMouse)*(f*.3+wob);
+  // Ojo de pez: amplía en el centro y curva hacia el borde de la gota
+  vec2 q = uv-(uv-uMouse)*(f*.34+wob);
   q = .5+(q-.5)/(1.+.035*uAmt);
   vec2 t = (q-.5)*uCover+.5;
-  vec2 dir = (p/(d+.001))*f*(1.-f)*.05;
+  // Filo con dispersión de lente: rojo fuera, amarillo en medio, azul dentro
+  float ring = f*(1.-f)*4.;
+  vec2 dir = (p/(d+.001))*ring*.022*uAmt;
   dir.x /= uSize.x/uSize.y;
-  vec4 c = texture2D(uTex,t);
-  c.r = texture2D(uTex,t+dir*uCover).r;
-  c.b = texture2D(uTex,t-dir*uCover).b;
-  c.rgb += f*(1.-f)*.09;
-  gl_FragColor = vec4(c.rgb,1.)*smoothstep(0.,.3,uAmt);
+  vec2 dc = dir*uCover;
+  vec3 c = vec3(0.);
+  // Desenfoque suave en el filo: cinco tomas por canal
+  for(int k=-2;k<=2;k++){
+    vec2 o = vec2(-dir.y,dir.x)*uCover*float(k)*.35;
+    c += vec3(texture2D(uTex,t+dc+o).r, texture2D(uTex,t+dc*.45+o).g, texture2D(uTex,t-dc*.7+o).b);
+  }
+  c /= 5.;
+  c += ring*.05;
+  gl_FragColor = vec4(c,1.)*smoothstep(0.,.3,uAmt);
 }`;
 
 const TARGETS = '.m, .vclip, .vslide, .panel__thumb';

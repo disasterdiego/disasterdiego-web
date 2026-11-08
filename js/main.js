@@ -1,7 +1,6 @@
 import { SOCIALS, WORLDS, PROJECTS, DESIGN, CONTENT, findProject } from './data.js';
 import { ticker, lerp, damp, finePointer, reduced, opt, esc } from './lib.js';
 import { initFx, fxHide } from './fx.js';
-import { createPaper } from './paper.js';
 import { initScan } from './scan.js';
 import { sound } from './sound.js';
 import { mountHome } from './views/home.js';
@@ -14,7 +13,6 @@ import { mountProject } from './views/project.js';
 const $ = id => document.getElementById(id);
 const view = $('view');
 initScan();
-const paper = createPaper($('paper'), $('paper-label'));
 const COUNTS = { advertising: PROJECTS.advertising.length, design: DESIGN.length, content: CONTENT.length };
 const THUMBS = {
   advertising: PROJECTS.advertising[0].cover,
@@ -50,7 +48,8 @@ panel.innerHTML = WORLDS.map((w, i) => `
 
 // Explorador de tipografías (provisional): se elige una y queda guardada
 const FONTS = [
-  ['VT323', ''], ['Syne Mono', '.9'], ['Big Shoulders Display', '.86'], ['Pirata One', '.92'], ['Major Mono Display', '.72'],
+  ['Space Mono', .62], ['VT323', 1], ['JetBrains Mono', .64], ['IBM Plex Mono', .64], ['DM Mono', .66],
+  ['Martian Mono', .56], ['Syne Mono', .7], ['Fragment Mono', .66], ['Major Mono Display', .56],
 ];
 const typeBtn = document.createElement('button');
 typeBtn.type = 'button';
@@ -58,13 +57,18 @@ typeBtn.className = 'panel__type';
 typeBtn.setAttribute('data-cursor-ui', '');
 panel.append(typeBtn);
 let fontI = 0;
-try { fontI = Math.max(0, FONTS.findIndex(f => f[0] === localStorage.getItem('dd-font'))); } catch {}
+try { fontI = Math.max(0, FONTS.findIndex(f => f[0] === localStorage.getItem('dd-font2'))); } catch {}
+// Una sola familia para todo: títulos, textos y pies de imagen
 const applyFont = () => {
   const [name, scale] = FONTS[fontI];
-  document.documentElement.style.setProperty('--pixel', `'${name}', 'Space Mono', monospace`);
-  document.documentElement.style.setProperty('--ds', scale || 1);
-  typeBtn.innerHTML = `<span>Tipografía ${fontI + 1}/${FONTS.length}</span><b style="font-family:'${name}'">${name}</b>`;
-  try { localStorage.setItem('dd-font', name); } catch {}
+  const fam = `'${name}', 'Space Mono', ui-monospace, monospace`;
+  document.documentElement.style.setProperty('--pixel', fam);
+  document.documentElement.style.setProperty('--mono', fam);
+  document.documentElement.style.setProperty('--ds', scale);
+  document.documentElement.dataset.font = name;
+  typeBtn.innerHTML = `<span>Tipografía ${fontI + 1}/${FONTS.length}</span><b>${name}</b>`;
+  try { localStorage.setItem('dd-font2', name); } catch {}
+  dispatchEvent(new Event('fontchange'));
 };
 typeBtn.addEventListener('click', () => { fontI = (fontI + 1) % FONTS.length; applyFont(); });
 applyFont();
@@ -97,17 +101,22 @@ export function setCursorLabel(html) {
 }
 if (finePointer) {
   document.documentElement.classList.add('has-cursor');
-  // Lupa: el punto sigue al cursor y los anillos rojo y cian se separan al moverte
-  const rr = $('cring-r'), rb = $('cring-b');
-  let tx = innerWidth / 2, ty = innerHeight / 2, x = tx, y = ty, rx = tx, ry = ty, bx = tx, by = ty;
+  // Lente: un círculo de cristal con el filo separado en rojo, amarillo y azul;
+  // al moverte se estira en la dirección del movimiento, como una gota
+  let tx = innerWidth / 2, ty = innerHeight / 2, x = tx, y = ty, s = 0, a = 0;
   addEventListener('pointermove', e => { tx = e.clientX; ty = e.clientY; }, { passive: true });
   ticker.add(dt => {
-    x = damp(x, tx, 34, dt); y = damp(y, ty, 34, dt);
-    rx = damp(rx, tx, 17, dt); ry = damp(ry, ty, 17, dt);
-    bx = damp(bx, tx, 11, dt); by = damp(by, ty, 11, dt);
-    cursor.style.transform = `translate3d(${x}px,${y}px,0) translate(-50%,-50%)`;
-    rr.style.transform = `translate3d(${rx}px,${ry}px,0) translate(-50%,-50%)`;
-    rb.style.transform = `translate3d(${bx}px,${by}px,0) translate(-50%,-50%)`;
+    const px = x, py = y;
+    x = damp(x, tx, 20, dt); y = damp(y, ty, 20, dt);
+    const vx = (x - px) / Math.max(dt, .001), vy = (y - py) / Math.max(dt, .001);
+    const sp = Math.hypot(vx, vy);
+    s = damp(s, Math.min(sp / 2600, .55), 10, dt);
+    if (sp > 40) a = Math.atan2(vy, vx);
+    const label = document.body.classList.contains('cursor-label');
+    cursor.style.transform = label
+      ? `translate3d(${x}px,${y}px,0) translate(-50%,-50%)`
+      : `translate3d(${x}px,${y}px,0) translate(-50%,-50%) rotate(${a}rad) scale(${1 + s},${1 - s * .45})`;
+    cursor.style.setProperty('--ca', `${(1.5 + s * 9).toFixed(1)}px`);
   });
   let lastUi = null;
   document.addEventListener('pointerover', e => {
@@ -152,6 +161,9 @@ function swap(route) {
 
 const wait = ms => new Promise(r => setTimeout(r, reduced ? 20 : ms));
 
+// Transición directa: la página se va por el borde de la lente (desenfoque y color
+// separado) y la nueva entra enfocando. Sin pantallas intermedias.
+const lens = $('lens');
 async function navigate() {
   const route = parse();
   if (route.key === currentKey) return;
@@ -159,11 +171,14 @@ async function navigate() {
   busy = true;
   sound.swish();
   view.classList.add('is-leaving');
-  await paper.play({
-    src: route.name === 'project' ? opt(findProject(route.id).cover, 1400) : null,
-    label: route.name === 'project' ? `${findProject(route.id).title} — ${findProject(route.id).cat}` : '',
-    swap: () => { swap(route); view.classList.remove('is-leaving'); },
-  });
+  lens.classList.remove('is-on');
+  void lens.offsetWidth;
+  lens.classList.add('is-on');
+  await wait(200);
+  try { swap(route); } catch (err) { console.error(err); }
+  view.classList.remove('is-leaving');
+  view.classList.add('is-entering');
+  setTimeout(() => view.classList.remove('is-entering'), 650);
   view.focus({ preventScroll: true });
   busy = false;
   if (queued) { queued = false; navigate(); }
@@ -171,25 +186,32 @@ async function navigate() {
 addEventListener('hashchange', navigate);
 
 // ---------- Arranque ----------
+// Carga: tu identidad pasando por la fotocopiadora mientras llega todo
 async function boot() {
-  const count = $('loader-count');
-  let shown = 0, target = 40;
+  const count = $('loader-count'), loader = $('loader'), shot = $('loader-shot');
+  const shots = ['disc', 'mask', 'tribal', 'tunnel', 'inverted', 'detail'].map(n => `assets/id/${n}.webp`);
+  let shown = 0, target = 30, si = 0;
+  const flip = setInterval(() => { shot.src = shots[si++ % shots.length]; }, 260);
   const stopCount = ticker.add(dt => {
-    shown = lerp(shown, target, 1 - Math.exp(-5 * dt));
+    shown = lerp(shown, target, 1 - Math.exp(-4 * dt));
     count.textContent = String(Math.round(shown)).padStart(3, '0');
+    loader.style.setProperty('--p', (shown / 100).toFixed(3));
   });
   const fonts = Promise.all([
-    document.fonts.load('400 20px "Space Mono"'),
-    document.fonts.load('40px "VT323"'),
+    document.fonts.load(`400 20px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`),
   ]).catch(() => {});
+  setTimeout(() => { target = 70; }, 500);
   await Promise.race([fonts, new Promise(r => setTimeout(r, 1500))]);
+  await wait(900);
   target = 100;
-  await wait(500);
+  await wait(650);
   swap(parse());
   stopCount();
+  clearInterval(flip);
   initFx($('fx'));
-  $('loader').classList.add('is-out');
+  loader.classList.add('is-out');
   document.body.classList.remove('is-loading');
-  setTimeout(() => $('loader').remove(), 900);
+  view.classList.add('is-entering');
+  setTimeout(() => { loader.remove(); view.classList.remove('is-entering'); }, 900);
 }
 boot();

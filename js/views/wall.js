@@ -6,7 +6,7 @@ import { getGL, program, texture, loadImage, ticker, damp, wrap, clamp, dpr, opt
 
 const VS = `precision highp float;
 attribute vec2 aPos; varying vec2 vUv; varying vec2 vClip; varying float vFold;
-uniform vec2 uRes, uCenter, uSize, uTilt; uniform float uRot, uFish, uScale, uVel, uT, uSeed;
+uniform vec2 uRes, uCenter, uSize, uTilt; uniform float uRot, uFish, uScale, uVel, uT, uSeed, uVert;
 float h2(vec2 p){ return fract(sin(dot(p,vec2(41.3,289.1)))*43758.5); }
 float vn(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y); }
 void main(){
@@ -16,18 +16,20 @@ void main(){
   float c = cos(uRot), s = sin(uRot);
   p = vec2(p.x*c-p.y*s, p.x*s+p.y*c) + uCenter;
   float v = abs(uVel);
-  // Cada tela se arruga a su manera: ruido propio por imagen, sin ola común
-  float sd = uSeed*37.;
-  vec2 fq = aPos*vec2(1.2+fract(uSeed*3.1)*2.1,.9+fract(uSeed*7.3)*1.8);
-  float n1 = vn(fq+vec2(sd,sd*.6)+vec2(uT*.55,-uT*.32))-.5;
-  float n2 = vn(fq*2.6+vec2(-sd,sd)+vec2(-uT*.4,uT*.75))-.5;
-  float amp = .55+fract(uSeed*11.7)*.9;
-  p.y += (n1*78.+n2*22.)*v*amp;
-  p.x += (n2*40.)*v*amp*(fract(uSeed*5.3)-.5);
-  z += n1*uVel*.5*amp;
-  vFold = (n1*.9+n2*.7)*v*amp*1.6;
+  // Tela: una ola común que recorre la pared (coherente) y un poco de
+  // arruga propia de cada imagen, para que no se repita el mismo patrón
+  vec2 q = uVert > .5 ? p.yx : p.xy;
+  float ph = uSeed*6.28;
+  float wave = sin(q.x*.0065+uT*1.5+ph*.35)*34.+sin(q.x*.019-uT*2.6+ph)*8.;
+  float n1 = vn(aPos*vec2(1.6,1.1)+uSeed*37.+vec2(uT*.4,-uT*.25))-.5;
+  float amp = .8+fract(uSeed*11.7)*.4;
+  float dsp = (wave+n1*30.)*v*amp;
+  if(uVert > .5) p.x += dsp; else p.y += dsp;
+  z += (sin(aPos.x*6.28+uT*2.+ph)*.15+n1*.25)*uVel;
+  vFold = (sin(q.x*.019-uT*2.6+ph)*.7+n1*.8)*v*amp;
   vec2 n = p/(uRes*.5);
-  p *= 1. - uFish*.16*dot(n,n);
+  // Ojo de pez del mapa: todo se curva hacia los bordes
+  p *= 1. - uFish*.2*dot(n,n);
   vec2 clip = p/(uRes*.5);
   vClip = clip;
   gl_Position = vec4(clip.x,-clip.y,0.,1.+z*.12);
@@ -35,21 +37,26 @@ void main(){
 
 const FS = `precision highp float;
 varying vec2 vUv; varying vec2 vClip; varying float vFold; uniform sampler2D uTex;
-uniform vec2 uCover, uSize, uMouse; uniform float uWash, uRadius, uReady, uLens, uIn, uHover, uVel;
+uniform vec2 uCover, uSize, uMouse; uniform float uWash, uRadius, uReady, uLens, uIn, uHover, uVel, uVert;
 void main(){
   // La misma gota de agua del resto de imágenes (fx.js)
   vec2 mp = (vUv-uMouse)*vec2(uSize.x/uSize.y,1.);
   float md = length(mp), f = uHover*smoothstep(.46,0.,md);
   vec2 t = ((vUv-.5)-(vUv-uMouse)*f*.3)*uCover+.5;
   float r = length(vClip*vec2(1.,.8)), v = abs(uVel);
-  float blur = uLens*(smoothstep(.6,1.3,r)*2.2+(1.-uIn)*5.+v*4.5);
-  vec2 dir = (normalize(vClip+.0001))*(uLens*smoothstep(.45,1.25,r)*.005);
+  // Borde del mapa: desenfoque gaussiano y dispersión de lente (rojo, amarillo, azul)
+  float edge = smoothstep(.42,1.2,r);
+  float blur = uLens*(edge*4.2+(1.-uIn)*5.+v*4.5);
+  vec2 dir = (normalize(vClip+.0001))*(uLens*edge*.018);
   dir.y = -dir.y;
-  dir += (mp/(md+.001))*f*(1.-f)*.05;
-  dir.x += uVel*.024*uLens;
+  float ring = f*(1.-f)*4.;
+  dir += (mp/(md+.001))*ring*.03;
+  if(uVert > .5) dir.y += uVel*.024*uLens; else dir.x += uVel*.024*uLens;
   vec4 c = texture2D(uTex,t,blur);
   c.r = texture2D(uTex,t+dir,blur).r;
-  c.b = texture2D(uTex,t-dir,blur).b;
+  c.g = texture2D(uTex,t+dir*.45,blur).g;
+  c.b = texture2D(uTex,t-dir*.7,blur).b;
+  c.rgb += ring*.04;
   c = mix(vec4(.86,.86,.85,1.), c, uReady);
   // Tela: pliegues y trama que solo aparecen en movimiento
   c.rgb += vFold*.08*uLens;
@@ -61,6 +68,8 @@ void main(){
 
 export function mountWall(root, { row = false, index } = {}) {
   const list = PROJECTS.advertising;
+  // En móvil, Row se recorre hacia abajo
+  const vert = row && isNarrow();
   root.innerHTML = '<canvas class="stage" id="wall" aria-hidden="true"></canvas>';
 
   const canvas = root.querySelector('#wall');
@@ -112,7 +121,7 @@ export function mountWall(root, { row = false, index } = {}) {
     c.width = 1024; c.height = 96;
     const x = c.getContext('2d');
     // El pie siempre mide 11 px en pantalla, sea cual sea el tamaño de la tarjeta
-    x.font = `400 ${Math.round((11 * 1024) / base)}px "Space Mono", monospace`;
+    x.font = `400 ${Math.round((11 * 1024) / base)}px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`;
     x.fillStyle = '#111';
     x.textBaseline = 'middle';
     x.fillText(p.title, 2, 48);
@@ -120,9 +129,11 @@ export function mountWall(root, { row = false, index } = {}) {
     x.fillText(p.date, 1022, 48);
     return texture(gl, c);
   };
-  document.fonts.load('400 24px "Space Mono"').finally(() => {
+  const captions = () => document.fonts.load(`400 24px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`).finally(() => {
     if (alive) list.forEach((p, i) => { tex[i].cap = makeCaption(p); });
   });
+  captions();
+  addEventListener('fontchange', captions);
 
   const COLS = 6, ROWS = 4;
   const rnd = seeded(1789);
@@ -147,8 +158,13 @@ export function mountWall(root, { row = false, index } = {}) {
     canvas.width = W * r; canvas.height = H * r;
     gl.viewport(0, 0, canvas.width, canvas.height);
     const narrow = isNarrow();
-    if (row) {
-      base = narrow ? W * .84 : Math.min(W * .5, H * 1.05);
+    if (vert) {
+      base = W * .86;
+      ch = base * .5625 + 54;
+      wrapX = W * 8; wrapY = list.length * ch;
+      cells.forEach(c => { c.x = 0; c.y = c.c * ch; });
+    } else if (row) {
+      base = Math.min(W * .5, H * 1.05);
       cw = base * 1.14;
       wrapX = list.length * cw; wrapY = H * 8;
       cells.forEach(c => { c.x = c.c * cw; c.y = 0; });
@@ -174,6 +190,7 @@ export function mountWall(root, { row = false, index } = {}) {
 
   const snap = () => {
     if (!row) return;
+    if (vert) { const q = ty / ch; ty = (dir < 0 ? Math.floor(q + .1) : Math.ceil(q - .1)) * ch; return; }
     const q = tx / cw;
     tx = (dir < 0 ? Math.floor(q + .1) : Math.ceil(q - .1)) * cw;
   };
@@ -203,8 +220,8 @@ export function mountWall(root, { row = false, index } = {}) {
     onStart: () => { fishT = row ? 0 : 1; vx = vy = 0; },
     onMove: (dx, dy) => {
       dragging = true;
-      tx += dx * 1.4; vx = dx * 1.4;
-      if (dx) dir = Math.sign(dx);
+      if (vert) { ty += dy * 1.4; vy = dy * 1.4; if (dy) dir = Math.sign(dy); }
+      else { tx += dx * 1.4; vx = dx * 1.4; if (dx) dir = Math.sign(dx); }
       if (!row) { ty += dy * 1.4; vy = dy * 1.4; }
       lastDrag = performance.now();
     },
@@ -222,7 +239,11 @@ export function mountWall(root, { row = false, index } = {}) {
 
   const onWheel = e => {
     e.preventDefault();
-    if (row) {
+    if (vert) {
+      ty -= e.deltaY * 1.2;
+      if (e.deltaY) dir = -Math.sign(e.deltaY);
+      snapT = .22;
+    } else if (row) {
       const dv = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       tx -= dv * 1.2;
       if (dv) dir = -Math.sign(dv);
@@ -250,7 +271,7 @@ export function mountWall(root, { row = false, index } = {}) {
     const px = cx, py = cy;
     cx = damp(cx, tx, row ? 4.5 : 5.5, dt); cy = damp(cy, ty, 5.5, dt);
     fish = damp(fish, fishT, 5, dt);
-    const mv = (Math.abs(cx - px) >= Math.abs(cy - py) ? cx - px : cy - py) / Math.max(dt, .001);
+    const mv = (vert ? cy - py : Math.abs(cx - px) >= Math.abs(cy - py) ? cx - px : cy - py) / Math.max(dt, .001);
     vel = damp(vel, clamp(mv / (row ? 2600 : 3400), -1, 1), 7, dt);
 
     gl.clearColor(0, 0, 0, 0);
@@ -265,7 +286,7 @@ export function mountWall(root, { row = false, index } = {}) {
       if (Math.abs(x) > W / 2 + w0 || Math.abs(y) > H / 2 + h0 * 1.5) continue;
       const dist = Math.hypot(x, y), r = dist / maxD;
       if (dist < nd) { nd = dist; nearest = c; }
-      const intensity = row ? .05 : .08 + fish * .92;
+      const intensity = row ? .4 : .32 + fish * .68;
       const sc = 1 - r * r * .2 * intensity;
       const k = 1 - intensity * .16 * ((x * x) / (W * W / 4) + (y * y) / (H * H / 4));
       drawn.push({ c, x, y, w: w0 * sc, h: h0 * sc, intensity, px: x * k, py: y * k, dist });
@@ -282,6 +303,7 @@ export function mountWall(root, { row = false, index } = {}) {
     index?.setActive(focus >= 0 ? focus : (row || isNarrow()) && nearest ? nearest.i : -1);
 
     gl.uniform1f(U.uVel, reduced ? 0 : vel);
+    gl.uniform1f(U.uVert, vert ? 1 : 0);
     gl.uniform1f(U.uT, t);
     for (const d of drawn) {
       const c = d.c, T = tex[c.i], isH = hovered === c;
@@ -340,6 +362,7 @@ export function mountWall(root, { row = false, index } = {}) {
       removeEventListener('resize', size);
       removeEventListener('pointermove', onPointer);
       removeEventListener('keydown', onKey);
+      removeEventListener('fontchange', captions);
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     },
   };

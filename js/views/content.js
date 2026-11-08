@@ -1,5 +1,7 @@
-// CONTENT: sala de montaje. Un solo vídeo a la vez en su formato real.
-// La línea de tiempo y el índice muestran siempre todo lo que hay.
+// CONTENT: reels. Un vídeo a la vez, se pasa hacia abajo como en Instagram o TikTok.
+// Al lado, la barra social: me gusta y comentarios.
+// OJO: likes y comentarios se guardan solo en el navegador de quien los deja.
+// Para que los vea todo el mundo hace falta un servicio externo (ver README de la propuesta).
 import { CONTENT } from '../data.js';
 import { setCursorLabel } from '../main.js';
 import { createIndex } from '../index-list.js';
@@ -8,61 +10,90 @@ import { ticker, damp, wrap, mod, clamp, opt, esc, isNarrow, bindDrag, reduced }
 const isVideo = u => u.endsWith('.mp4') || u.includes('/video/upload/');
 const ratioOf = r => { const [a, b] = r.split('/').map(Number); return a / b; };
 const pad = n => String(n).padStart(2, '0');
-const label = r => r.replace('/', ':');
-const poster = u => (isVideo(u) ? u.replace(/\.mp4$/i, '.jpg') : opt(u, 240));
+const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5 4.6 13.4A4.6 4.6 0 0 1 12 6.9a4.6 4.6 0 0 1 7.4 6.5z"/></svg>';
+const BUBBLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>';
+const SOUND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/></svg>';
+
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const key = (i, what) => `dd-${what}-${CONTENT[i].src.slice(-24)}`;
 
 export function mountContent(root) {
   const n = CONTENT.length;
   root.innerHTML = `
-    <div class="room" id="room">
-      <div class="room__stage" id="stage">
-        ${CONTENT.map(c => `<figure class="vclip" style="aspect-ratio:${c.ratio}">${isVideo(c.src)
+    <div class="reels" id="reels">
+      <div class="reels__stage" id="stage">
+        ${CONTENT.map((c, i) => `<figure class="vclip reel" style="--ar:${ratioOf(c.ratio)}">${isVideo(c.src)
           ? `<video data-src="${c.src}" crossorigin="anonymous" muted loop playsinline preload="none"></video>`
-          : `<img src="${opt(c.src, 1200)}" alt="" loading="lazy" draggable="false">`}</figure>`).join('')}
+          : `<img src="${opt(c.src, 1000)}" alt="" loading="lazy" draggable="false">`}
+          <figcaption><b>${pad(i + 1)}</b> ${esc(c.title)}</figcaption><i class="reel__bar"></i></figure>`).join('')}
       </div>
-      <div class="timeline" id="timeline" role="group" aria-label="Línea de tiempo">
-        ${CONTENT.map((c, i) => `<button class="tl" type="button" style="--g:${ratioOf(c.ratio).toFixed(2)};background-image:url('${poster(c.src)}')" data-i="${i}" aria-label="${esc(c.title)}" data-cursor-ui><i></i><span><b>${pad(i + 1)}</b> ${esc(c.title)}</span></button>`).join('')}
+      <div class="rail" id="rail">
+        <button type="button" class="rail__b" id="r-like" data-cursor-ui aria-pressed="false">${HEART}<span id="r-likes">0</span></button>
+        <button type="button" class="rail__b" id="r-com" data-cursor-ui>${BUBBLE}<span id="r-coms">0</span></button>
+        <button type="button" class="rail__b" id="r-snd" data-cursor-ui>${SOUND}<span>Off</span></button>
+        <span class="rail__n" id="r-n"></span>
       </div>
     </div>
     <aside class="meta" id="meta" aria-live="polite">
       <span class="meta__n" id="m-n"></span>
       <h2 class="meta__t display" id="m-t"></h2>
       <dl class="meta__dl"><div><dt>Format</dt><dd id="m-f"></dd></div><div><dt>Type</dt><dd id="m-k"></dd></div></dl>
-      <button class="meta__btn" type="button" id="m-s" data-cursor-ui>Sound off</button>
-    </aside>`;
+      <p class="meta__hint">Scroll ↓ para el siguiente</p>
+    </aside>
+    <section class="comments" id="comments" aria-label="Comentarios" inert>
+      <header><b>Comentarios</b><button type="button" id="c-x" data-cursor-ui>Cerrar</button></header>
+      <ul id="c-list"></ul>
+      <form id="c-form"><input name="name" maxlength="30" placeholder="Nombre (opcional)" autocomplete="off"><textarea name="text" maxlength="280" rows="2" placeholder="Escribe un comentario" required></textarea><button type="submit" data-cursor-ui>Publicar</button></form>
+    </section>`;
 
-  const clips = [...root.querySelectorAll('.vclip')].map((el, i) => ({ el, i, v: el.querySelector('video') }));
-  const ticks = [...root.querySelectorAll('.tl')];
+  const clips = [...root.querySelectorAll('.reel')].map((el, i) => ({ el, i, v: el.querySelector('video'), bar: el.querySelector('.reel__bar') }));
   const stage = root.querySelector('#stage');
   const $ = id => root.querySelector(id);
-  const soundBtn = $('#m-s');
+  const comments = $('#comments');
   let muted = true, cur = -1, p = 0, tp = 0, snapT = 0, dir = 1;
 
   const go = i => { tp += wrap(i - mod(tp, n), n); };
   const index = createIndex(root, CONTENT, { onEnter: go, onPick: go });
 
+  // Cada clip ocupa todo el alto disponible; los horizontales caben por ancho
   const fit = () => {
     const b = stage.getBoundingClientRect();
     clips.forEach((c, i) => {
       const r = ratioOf(CONTENT[i].ratio);
       const w = Math.min(b.width, b.height * r);
       c.el.style.width = `${w}px`;
+      c.el.style.height = `${w / r}px`;
     });
   };
   fit();
   addEventListener('resize', fit, { passive: true });
 
+  const renderSocial = () => {
+    const liked = store.get(key(cur, 'like'), false);
+    $('#r-like').classList.toggle('is-on', liked);
+    $('#r-like').setAttribute('aria-pressed', liked);
+    $('#r-likes').textContent = liked ? 1 : 0;
+    const list = store.get(key(cur, 'com'), []);
+    $('#r-coms').textContent = list.length;
+    $('#c-list').innerHTML = list.length
+      ? list.map(c => `<li><b>${esc(c.name || 'Anónimo')}</b><p>${esc(c.text)}</p></li>`).join('')
+      : '<li class="is-empty">Sé el primero en comentar.</li>';
+  };
+
   const setCurrent = i => {
     cur = i;
     const c = CONTENT[i];
     $('#m-n').textContent = `${pad(i + 1)} / ${pad(n)}`;
+    $('#r-n').textContent = `${pad(i + 1)}/${pad(n)}`;
     $('#m-t').textContent = c.title;
-    $('#m-f').textContent = label(c.ratio);
+    $('#m-f').textContent = c.ratio.replace('/', ':');
     $('#m-k').textContent = ratioOf(c.ratio) < 1 ? 'Vertical' : 'Horizontal';
-    ticks.forEach((t, k) => t.classList.toggle('is-active', k === i));
-    if (isNarrow()) ticks[i].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     index.setActive(i);
-    soundBtn.style.visibility = clips[i].v ? '' : 'hidden';
+    $('#r-snd').style.visibility = clips[i].v ? '' : 'hidden';
+    renderSocial();
     clips.forEach((k, j) => {
       if (!k.v) return;
       if (j === i) {
@@ -77,38 +108,55 @@ export function mountContent(root) {
     muted = !muted;
     const v = clips[cur]?.v;
     if (v) { v.muted = muted; v.play().catch(() => {}); }
-    soundBtn.textContent = muted ? 'Sound off' : 'Sound on';
-    soundBtn.classList.toggle('is-on', !muted);
-    setCursorLabel(clips[cur]?.v ? (muted ? 'Sound on' : 'Sound off') : '');
+    $('#r-snd').querySelector('span').textContent = muted ? 'Off' : 'On';
+    $('#r-snd').classList.toggle('is-on', !muted);
   };
-  soundBtn.addEventListener('click', toggleSound);
-  root.querySelector('#timeline').addEventListener('click', e => {
-    const b = e.target.closest('.tl');
-    if (b) go(+b.dataset.i);
+  const setComments = on => {
+    comments.classList.toggle('is-open', on);
+    comments.inert = !on;
+    if (on) setTimeout(() => comments.querySelector('textarea').focus({ preventScroll: true }), 300);
+  };
+  const onRail = e => {
+    const b = e.target.closest('.rail__b');
+    if (!b) return;
+    if (b.id === 'r-like') { store.set(key(cur, 'like'), !store.get(key(cur, 'like'), false)); renderSocial(); b.classList.add('is-pop'); setTimeout(() => b.classList.remove('is-pop'), 400); }
+    if (b.id === 'r-com') setComments(!comments.classList.contains('is-open'));
+    if (b.id === 'r-snd') toggleSound();
+  };
+  $('#rail').addEventListener('click', onRail);
+  $('#c-x').addEventListener('click', () => setComments(false));
+  $('#c-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const text = String(f.get('text') || '').trim();
+    if (!text) return;
+    const list = store.get(key(cur, 'com'), []);
+    list.push({ name: String(f.get('name') || '').trim(), text });
+    store.set(key(cur, 'com'), list);
+    e.target.reset();
+    renderSocial();
   });
 
   const snap = () => { tp = dir > 0 ? Math.ceil(tp - .12) : Math.floor(tp + .12); };
   const offDrag = bindDrag(stage, {
-    onMove: (dx, dy) => {
-      const d = Math.abs(dx) > Math.abs(dy) ? -dx : -dy;
-      tp += d * .0034;
-      if (d) dir = Math.sign(d);
-    },
+    onMove: (dx, dy) => { tp -= dy * .004; if (dy) dir = -Math.sign(dy); },
     onEnd: snap,
     onTap: toggleSound,
   });
   stage.addEventListener('dragstart', e => e.preventDefault());
   const onWheel = e => {
+    if (e.target.closest('.comments')) return;
     e.preventDefault();
     const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    tp += d * .0028;
+    tp += d * .0026;
     if (d) dir = Math.sign(d);
     snapT = .2;
   };
   root.addEventListener('wheel', onWheel, { passive: false });
   const onKey = e => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { dir = 1; tp = Math.round(tp) + 1; }
-    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { dir = -1; tp = Math.round(tp) - 1; }
+    if (e.target.closest?.('input,textarea')) return;
+    if (e.key === 'ArrowDown') { dir = 1; tp = Math.round(tp) + 1; }
+    if (e.key === 'ArrowUp') { dir = -1; tp = Math.round(tp) - 1; }
   };
   addEventListener('keydown', onKey);
   const onHover = e => { if (e.pointerType === 'mouse') setCursorLabel(clips[cur]?.v ? (muted ? 'Sound on' : 'Sound off') : ''); };
@@ -117,28 +165,26 @@ export function mountContent(root) {
 
   const stop = ticker.add(dt => {
     if (snapT > 0) { snapT -= dt; if (snapT <= 0) snap(); }
-    p = damp(p, tp, 6, dt);
+    p = damp(p, tp, 6.5, dt);
     if (Math.abs(tp - p) < .0005) p = tp;
     const a = mod(Math.round(p), n);
     if (a !== cur) setCurrent(a);
 
-    // Cambio de plano en 3D: el clip gira, pierde foco y deja paso al siguiente
+    // El siguiente sube desde abajo; el que se va se aleja y pierde foco por el borde
     for (const c of clips) {
-      const d = wrap(c.i - p, n), ad = Math.abs(d), show = ad < .75;
+      const d = wrap(c.i - p, n), ad = Math.abs(d), show = ad < 1.2;
       c.el.style.visibility = show ? '' : 'hidden';
       c.el.style.pointerEvents = ad < .5 ? 'auto' : 'none';
       if (!show) continue;
-      const rot = reduced ? 0 : d * -48;
-      c.el.style.transform = `translate(-50%,-50%) translate3d(${d * 38}%,0,${-ad * 240}px) rotateY(${rot}deg)`;
-      c.el.style.opacity = clamp(1 - ad * 1.7, 0, 1);
-      const blur = Math.round(ad * 26);
+      const k = reduced ? 0 : 1;
+      c.el.style.transform = `translate(-50%,-50%) translate3d(0,${d * 104}%,0) scale(${1 - ad * .1 * k})`;
+      c.el.style.opacity = clamp(1.15 - ad, 0, 1);
+      const blur = Math.round(ad * 16 * k);
       if (blur !== c.blur) { c.blur = blur; c.el.style.filter = blur ? `blur(${blur}px)` : 'none'; }
     }
-
-    // Cabezal de reproducción dentro del clip activo
     const v = clips[cur]?.v;
     const prog = v && v.duration ? v.currentTime / v.duration : 0;
-    ticks.forEach((t, k) => t.style.setProperty('--p', k === cur ? prog : 0));
+    if (clips[cur]) clips[cur].bar.style.transform = `scaleX(${prog})`;
   });
 
   return () => {

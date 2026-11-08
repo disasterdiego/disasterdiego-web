@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://res.cloudinary.com">
   <link rel="preconnect" href="https://images.unsplash.com">
-  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Syne+Mono&family=Big+Shoulders+Display:wght@700&family=Pirata+One&family=Major+Mono+Display&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=VT323&family=JetBrains+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=DM+Mono:wght@400;500&family=Martian+Mono:wght@400;700&family=Syne+Mono&family=Fragment+Mono&family=Major+Mono+Display&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
   <script type="module" src="js/main.js"></script>
 </head>
@@ -41,13 +41,15 @@
   <!-- Contacto siempre a mano -->
   <nav class="social" id="socials" aria-label="Contacto"></nav>
 
-  <canvas class="paper" id="paper" aria-hidden="true"></canvas>
-  <div class="paper-label" id="paper-label" aria-hidden="true"></div>
+  <div class="lens" id="lens" aria-hidden="true"></div>
   <div class="grain" aria-hidden="true"></div>
-  <div class="loader" id="loader" aria-hidden="true"><span id="loader-count">000</span></div>
-  <div class="cring cring--r" id="cring-r" aria-hidden="true"></div>
-  <div class="cring cring--b" id="cring-b" aria-hidden="true"></div>
-  <div class="cursor" id="cursor" aria-hidden="true"></div>
+  <div class="loader" id="loader" aria-hidden="true">
+    <p class="loader__marks"><span>]*[</span><span>INDENTITY //</span><span>EXPLORATIONS</span><span>NOT A REBRANDING</span><span>]-[</span></p>
+    <div class="loader__slot"><img id="loader-shot" src="assets/id/disc.webp" alt=""><i class="loader__scan"></i></div>
+    <p class="loader__word">disaster<em>ID</em>ego</p>
+    <div class="loader__foot"><span>F73 — A B C D</span><span class="loader__bar"><i></i></span><span>[<b id="loader-count">000</b>]</span></div>
+  </div>
+    <div class="cursor" id="cursor" aria-hidden="true"></div>
   <noscript><p style="padding:2rem 1rem">Esta web necesita JavaScript para mostrar el portfolio.</p></noscript>
 </body>
 </html>

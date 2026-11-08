@@ -9,9 +9,12 @@ export const SOCIALS = [
   { key: 'mail', label: 'Mail', short: '@', href: 'mailto:diieglez@gmail.com' },
 ];
 
-export const HOME_IMAGE = 'https://i-p.rmcdn.net/63d6ae2f63b89a00190b4918/6498234/image-a87650d7-c006-462d-bd31-0e310e2721ff.png?cX=9&cY=0&cW=1901&cH=1080';
-// >>> Tu foto con la cara tatuada, mismo encuadre que HOME_IMAGE. Mientras sea null se simula <<<
-export const HOME_UNDER = null;
+// HOME: HOME_IMAGE es la foto de arriba; HOME_UNDER, la que aparece con el trazo.
+// >>> Cuando me pases tu foto nueva: HOME_IMAGE = 'assets/home/nueva.jpg' y HOME_SIMULATE = false <<<
+export const HOME_UNDER = 'assets/home/portrait.jpg';
+export const HOME_IMAGE = 'assets/home/portrait.jpg';
+// Mientras falte la foto nueva, la capa de abajo se simula como fotocopia tatuada
+export const HOME_SIMULATE = true;
 
 export const WORLDS = [
   { id: 'advertising', label: 'Advertising' },
