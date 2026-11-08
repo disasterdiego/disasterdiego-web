@@ -41,9 +41,9 @@
   <!-- Contacto siempre a mano -->
   <nav class="social" id="socials" aria-label="Contacto"></nav>
 
-  <div class="lens" id="lens" aria-hidden="true"></div>
-  <div class="neg" id="neg" aria-hidden="true"><i class="neg__ring"></i></div>
-  <div class="hud" id="hud" aria-hidden="true"><span id="hud-t">MAD 00:00:00</span><span id="hud-l"></span></div>
+  <div class="lens" id="lens" aria-hidden="true"><i class="lens__rim"></i></div>
+  <button type="button" class="hud" id="hud" data-cursor-ui aria-label="Cambiar cursor"><span id="hud-t">MAD 00:00:00</span><span id="hud-l"></span><span class="hud__c" id="hud-c"></span></button>
+  <button type="button" class="night" id="night" data-cursor-ui aria-pressed="false" aria-label="Modo nocturno"><i></i><b>Día</b></button>
   <svg class="sr" aria-hidden="true" focusable="false">
     <!-- Aberración cromática: separa rojo y azul en direcciones opuestas -->
     <filter id="ca" x="-2%" y="-2%" width="104%" height="104%" color-interpolation-filters="sRGB">
@@ -55,8 +55,8 @@
       <feBlend in="ro" in2="g" mode="screen" result="rg"/>
       <feBlend in="rg" in2="bo" mode="screen"/>
     </filter>
-    <filter id="ca-near" color-interpolation-filters="sRGB"><feColorMatrix in="SourceGraphic" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/><feOffset in="r" dx="-5" dy="1" result="ro"/><feColorMatrix in="SourceGraphic" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/><feColorMatrix in="SourceGraphic" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/><feOffset in="b" dx="5" dy="-1" result="bo"/><feBlend in="ro" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="bo" mode="screen"/></filter>
-    <filter id="ca-far" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="s"/><feColorMatrix in="s" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/><feOffset in="r" dx="-13" dy="3" result="ro"/><feColorMatrix in="s" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/><feColorMatrix in="s" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/><feOffset in="b" dx="13" dy="-3" result="bo"/><feBlend in="ro" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="bo" mode="screen"/></filter>
+    <filter id="ca-near" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="s"/><feColorMatrix in="s" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/><feOffset in="r" dx="-5" dy="1" result="ro"/><feColorMatrix in="s" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/><feColorMatrix in="s" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/><feOffset in="b" dx="5" dy="-1" result="bo"/><feBlend in="ro" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="bo" mode="screen"/></filter>
+    <filter id="ca-far" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="3.4" result="s"/><feColorMatrix in="s" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/><feOffset in="r" dx="-13" dy="3" result="ro"/><feColorMatrix in="s" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/><feColorMatrix in="s" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/><feOffset in="b" dx="13" dy="-3" result="bo"/><feBlend in="ro" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="bo" mode="screen"/></filter>
   </svg>
   <div class="grain" aria-hidden="true"></div>
   <div class="loader" id="loader" aria-hidden="true">

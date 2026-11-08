@@ -37,14 +37,14 @@ void main(){
 
 const FS = `precision highp float;
 varying vec2 vUv; varying vec2 vClip; varying float vFold; uniform sampler2D uTex;
-uniform vec2 uCover, uSize, uMouse; uniform float uWash, uRadius, uReady, uLens, uIn, uHover, uVel, uVert;
+uniform vec2 uCover, uSize, uMouse; uniform vec3 uPaper; uniform float uWash, uRadius, uReady, uLens, uIn, uHover, uVel, uVert;
 void main(){
   // La misma gota de agua del resto de imágenes (fx.js)
   vec2 mp = (vUv-uMouse)*vec2(uSize.x/uSize.y,1.);
   float md = length(mp), f = uHover*smoothstep(.46,0.,md);
   vec2 t = ((vUv-.5)-(vUv-uMouse)*f*.3)*uCover+.5;
   float r = length(vClip*vec2(1.,.8)), v = abs(uVel);
-  // Borde del mapa: desenfoque gaussiano y dispersión de lente (rojo, amarillo, azul)
+  // Borde del mapa: desenfoque gaussiano y dispersión de lente (rojo, verde, azul)
   float edge = smoothstep(.42,1.2,r);
   float blur = uLens*(edge*4.2+(1.-uIn)*5.+v*4.5);
   vec2 dir = (normalize(vClip+.0001))*(uLens*edge*.018);
@@ -57,12 +57,12 @@ void main(){
   c.g = texture2D(uTex,t+dir*.45,blur).g;
   c.b = texture2D(uTex,t-dir*.7,blur).b;
   c.rgb += ring*.04;
-  c = mix(vec4(.86,.86,.85,1.), c, uReady);
+  c = mix(vec4(uPaper*.92,1.), c, uReady);
   // Tela: pliegues y trama que solo aparecen en movimiento
   c.rgb += vFold*.08*uLens;
   vec2 q = abs(vUv-.5)*uSize - uSize*.5 + uRadius;
   float a = uRadius>0. ? 1.-smoothstep(-.7,.7,length(max(q,0.))+min(max(q.x,q.y),0.)-uRadius) : 1.;
-  vec3 paper = vec3(.933,.933,.922)*c.a;
+  vec3 paper = uPaper*c.a;
   gl_FragColor = vec4(mix(c.rgb,paper,uWash),c.a)*a;
 }`;
 
@@ -302,6 +302,7 @@ export function mountWall(root, { row = false, index } = {}) {
     const focus = hovered ? hovered.i : sideFocus;
     index?.setActive(focus >= 0 ? focus : (row || isNarrow()) && nearest ? nearest.i : -1);
 
+    const night = document.documentElement.classList.contains('is-night');
     gl.uniform1f(U.uVel, reduced ? 0 : vel);
     gl.uniform1f(U.uVert, vert ? 1 : 0);
     gl.uniform1f(U.uT, t);
@@ -328,6 +329,7 @@ export function mountWall(root, { row = false, index } = {}) {
       gl.uniform1f(U.uFish, d.intensity);
       gl.uniform2f(U.uCover, ir > fr ? fr / ir : 1, ir > fr ? 1 : ir / fr);
       gl.uniform1f(U.uWash, c.wash);
+      if (night) gl.uniform3f(U.uPaper, .075, .075, .072); else gl.uniform3f(U.uPaper, .933, .933, .922);
       gl.uniform1f(U.uRadius, 6);
       gl.uniform1f(U.uSeed, c.seed);
       gl.uniform1f(U.uReady, T.ready);

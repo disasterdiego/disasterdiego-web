@@ -11,10 +11,10 @@ export const SOCIALS = [
 
 // HOME: HOME_IMAGE es la foto de arriba; HOME_UNDER, la que aparece con el trazo.
 // >>> Cuando me pases tu foto nueva: HOME_IMAGE = 'assets/home/nueva.jpg' y HOME_SIMULATE = false <<<
-export const HOME_UNDER = 'assets/home/portrait.jpg';
-export const HOME_IMAGE = 'assets/home/portrait.jpg';
+export const HOME_UNDER = 'assets/home/under.webp';
+export const HOME_IMAGE = 'assets/home/top.webp';
 // Mientras falte la foto nueva, la capa de abajo se simula como fotocopia tatuada
-export const HOME_SIMULATE = true;
+export const HOME_SIMULATE = false;
 
 export const WORLDS = [
   { id: 'advertising', label: 'Advertising' },
@@ -244,6 +244,13 @@ export const CONTENT = [
 export const ABOUT = {
   bio: 'Disasterdiego es esa persona que me gustaría ser más veces. Un desastre muy mío: la única constante es el fallo.',
   brands: ["McDonald's", 'Monopoly', 'Doritos', 'PepsiCo', 'Formula 1', 'Cheetos', 'Marvel', 'ARRI', 'Higgsfield'],
+  // Logos en monocromo; las marcas sin archivo salen como palabra
+  logos: {
+    "McDonald's": MCD,
+    'Formula 1': 'https://upload.wikimedia.org/wikipedia/commons/3/33/F1.svg',
+    Marvel: 'https://upload.wikimedia.org/wikipedia/commons/b/b9/Marvel_Logo.svg',
+  },
+  short: 'Director de arte. Publicidad, diseño y contenido para marcas que no se conforman con lo correcto.',
   now: { what: '[Puesto actual]', where: '[Dónde trabajas ahora]' },
   career: [
     { when: '[Año — año]', what: '[Puesto]', where: '[Empresa]' },

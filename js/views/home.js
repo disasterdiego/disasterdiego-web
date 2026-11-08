@@ -3,6 +3,7 @@
 // en rojo, amarillo y azul. Es la misma lente que usa toda la web.
 import { HOME_IMAGE, HOME_UNDER, HOME_SIMULATE, WORLDS, PROJECTS, DESIGN, CONTENT, ABOUT } from '../data.js';
 import { getGL, program, fullscreenQuad, VS_FULL, texture, loadImage, ticker, damp, lerp, opt, esc, reduced, isNarrow, finePointer } from '../lib.js';
+import { cursorScale } from '../cursor-mode.js';
 
 const FS = `precision highp float;
 varying vec2 vUv;
@@ -70,7 +71,7 @@ const PEEK = {
     const col = (k) => { const l = CONTENT.filter((_, i) => i % 3 === k).map(c => `<span><img src="${poster(c.src, 200)}" alt="" loading="lazy"><small>${esc(c.title)}</small></span>`).join(''); return `<div style="--d:${14 + k * 5}s"${k === 1 ? ' class="is-rev"' : ''}><div>${l}${l}</div></div>`; };
     return `<p class="peek__k">Reels, uno a uno, con likes y comentarios</p><div class="peek__wall">${col(0)}${col(1)}${col(2)}</div>`;
   },
-  about: () => `<p class="peek__k">Quién está detrás de la lente</p><div class="peek__me"><span class="peek__eye"><img src="assets/id/mask.webp" alt=""></span><div><p class="peek__quote display">La única constante es el fallo.</p><p class="peek__now">Ahora — ${esc(ABOUT.now.where)}</p><p class="peek__now">${ABOUT.brands.length} marcas · ${esc(ABOUT.brands.slice(0, 4).join(', '))}…</p></div></div>`,
+  about: () => `<p class="peek__k">Quién está detrás de la lente</p><p class="peek__bio">${esc(ABOUT.short)}</p><ul class="peek__logos">${ABOUT.brands.map(b => `<li>${ABOUT.logos[b] ? `<img src="${ABOUT.logos[b]}" alt="${esc(b)}" loading="lazy">` : `<span>${esc(b)}</span>`}</li>`).join('')}</ul><p class="peek__now">Ahora — ${esc(ABOUT.now.where)}</p>`,
 };
 
 export function mountHome(root) {
@@ -154,7 +155,7 @@ export function mountHome(root) {
     const r = Math.min(devicePixelRatio || 1, 1.5);
     canvas.width = W * r; canvas.height = H * r;
     gl.viewport(0, 0, canvas.width, canvas.height);
-    k = 640 / W;
+    k = 640 / Math.max(W, 1);
     mask.width = 640; mask.height = Math.max(2, Math.round(H * k));
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, mask.width, mask.height);
     gl.uniform2f(U.uPx, 1 / mask.width, 1 / mask.height);
@@ -164,48 +165,77 @@ export function mountHome(root) {
   size();
   addEventListener('resize', size, { passive: true });
 
-  // Trazo: sellos pequeños a lo largo del recorrido, que se secan en un segundo
-  const stamp = (x, y, r, a) => {
+  // Trazo como el pincel original: gotas del tamaño de la cabeza cada 5 px, que se
+  // encogen y se secan en medio segundo, con salpicaduras pequeñas alrededor
+  const stamp = (x, y, r) => {
     const X = x * k, Y = y * k, R = r * k;
+    if (!(R >= .5) || !Number.isFinite(X + Y + R)) return;
     const g = ctx.createRadialGradient(X, Y, 0, X, Y, R);
-    g.addColorStop(0, `rgba(255,255,255,${a})`);
-    g.addColorStop(.55, `rgba(255,255,255,${a * .8})`);
+    g.addColorStop(0, '#fff');
+    g.addColorStop(.8, '#fff');
     g.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(X, Y, R, 0, 7); ctx.fill();
   };
   const brush = () => Math.min(W, H) * (isNarrow() ? .085 : .07);
-  let headA = 0;
-  let px = null, py = null, mx = W / 2, my = H * .42, touched = 0, idle = 0, rx = 0, ry = 0;
-  const trail = (x, y, power) => {
-    if (px === null) { px = x; py = y; }
-    const dist = Math.hypot(x - px, y - py);
-    const steps = Math.min(Math.ceil(dist / 2.5), 160);
-    // Rastro fino detrás de la cabeza; más rápido = más fino
-    const r = brush() * (.5 - Math.min(dist / 400, .2));
-    for (let i = 1; i <= steps; i++) stamp(lerp(px, x, i / steps), lerp(py, y, i / steps), r, power);
-    px = x; py = y;
+  const base = () => brush() * 2.4 * (cursorScale() || 1);
+  const drops = [];
+  const FLOW = 5, MAX = 300;
+  const spawn = (x, y, particle) => {
+    const B = base();
+    drops.push(particle
+      ? { x, y, vx: (Math.random() - .5) * 135, vy: (Math.random() - .5) * 135, r: B * (.02 + Math.random() * .15), life: 1 }
+      : { x, y, vx: (Math.random() - .5) * 24, vy: (Math.random() - .5) * 24, r: B, life: 1 });
+    if (drops.length > MAX) drops.shift();
   };
-  const onMove = e => { mx = e.clientX; my = e.clientY; touched = 2.5; trail(mx, my, .5); };
-  const onUp = e => { if (e.pointerType !== 'mouse') px = py = null; };
+  let headA = 0;
+  let tx = null, ty = null, cx = null, cy = null, lx = 0, ly = 0;
+  let mx = W / 2, my = H * .42, touched = 0, idle = 0, rx = 0, ry = 0;
+  const follow = (dt, paint) => {
+    if (tx === null) return;
+    if (cx === null) { cx = tx; cy = ty; lx = cx; ly = cy; spawn(cx, cy); return; }
+    const e = 1 - Math.pow(.75, dt * 60);
+    cx += (tx - cx) * e; cy += (ty - cy) * e;
+    const dx = cx - lx, dy = cy - ly, dist = Math.hypot(dx, dy);
+    if (dist <= FLOW) return;
+    if (!paint) { lx = cx; ly = cy; return; }
+    const steps = Math.min(Math.floor(dist / FLOW), 80), sep = base() * .95;
+    for (let i = 1; i <= steps; i++) {
+      const x = lx + dx * (i / steps), y = ly + dy * (i / steps);
+      spawn(x, y);
+      if (Math.random() > .6) spawn(x + (Math.random() - .5) * sep, y + (Math.random() - .5) * sep, true);
+    }
+    lx = cx; ly = cy;
+  };
+  const onMove = e => { tx = e.clientX; ty = e.clientY; touched = 2.5; };
+  const onUp = e => { if (e.pointerType !== 'mouse') { tx = ty = cx = cy = null; } };
   addEventListener('pointermove', onMove, { passive: true });
   addEventListener('pointerdown', onMove, { passive: true });
   addEventListener('pointerup', onUp, { passive: true });
 
   const stop = ticker.add((dt, t) => {
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = `rgba(0,0,0,${Math.min(1, dt * 4.5)})`;
-    ctx.fillRect(0, 0, mask.width, mask.height);
-    ctx.globalCompositeOperation = 'lighter';
     touched = Math.max(0, touched - dt);
     if (!touched && !reduced) {
       // Sin cursor, un trazo lento recorre la cara
       idle += dt;
-      const x = W / 2 + Math.sin(idle * .7) * Math.min(W, H) * .16 + Math.sin(idle * 1.9) * 20;
-      const y = H * .42 + Math.sin(idle * 1.13 + 1) * H * .12;
-      trail(x, y, .32);
-      mx = x; my = y;
-    } else if (!touched) px = py = null;
+      tx = W / 2 + Math.sin(idle * .7) * Math.min(W, H) * .16 + Math.sin(idle * 1.9) * 20;
+      ty = H * .42 + Math.sin(idle * 1.13 + 1) * H * .12;
+    }
+    // En reposo la lente pasea sin dejar rastro; el rastro es solo tuyo
+    follow(Math.min(dt, .05), touched > 0);
+    if (cx !== null) { mx = cx; my = cy; }
+    const fd = Math.min(dt, .05);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, mask.width, mask.height);
+    ctx.globalCompositeOperation = 'lighten';
+    for (let i = drops.length - 1; i >= 0; i--) {
+      const d = drops[i];
+      d.life -= fd * 2.1;
+      if (d.life <= 0) { drops.splice(i, 1); continue; }
+      d.x += d.vx * fd; d.y += d.vy * fd;
+      stamp(d.x, d.y, d.r * Math.pow(d.life, 1.3));
+    }
 
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, mtex);
@@ -217,8 +247,8 @@ export function mountHome(root) {
     }
     if (!tex.top || !tex.under) return;
     gl.uniform2f(U.uMouse, mx / W, my / H);
-    headA = damp(headA, 1, 4, dt);
-    gl.uniform1f(U.uHead, (brush() * 1.6) / H);
+    headA = damp(headA, cx === null ? 0 : 1, 4, dt);
+    gl.uniform1f(U.uHead, base() / H);
     gl.uniform1f(U.uHeadA, headA);
     gl.uniform1f(U.uT, t);
     gl.drawArrays(gl.TRIANGLES, 0, 3);

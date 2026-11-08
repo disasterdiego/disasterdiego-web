@@ -16,18 +16,13 @@ void main(){
   vec2 q = uv-(uv-uMouse)*(f*.34+wob);
   q = .5+(q-.5)/(1.+.035*uAmt);
   vec2 t = (q-.5)*uCover+.5;
-  // Filo con dispersión de lente: rojo fuera, amarillo en medio, azul dentro
+  // Filo con dispersión de lente: rojo fuera, verde en medio, azul dentro
   float ring = f*(1.-f)*4.;
   vec2 dir = (p/(d+.001))*ring*.022*uAmt;
   dir.x /= uSize.x/uSize.y;
   vec2 dc = dir*uCover;
-  vec3 c = vec3(0.);
-  // Desenfoque suave en el filo: cinco tomas por canal
-  for(int k=-2;k<=2;k++){
-    vec2 o = vec2(-dir.y,dir.x)*uCover*float(k)*.35;
-    c += vec3(texture2D(uTex,t+dc+o).r, texture2D(uTex,t+dc*.45+o).g, texture2D(uTex,t-dc*.7+o).b);
-  }
-  c /= 5.;
+  // Sin desenfoque: solo el color separado en el filo (rojo, verde, azul)
+  vec3 c = vec3(texture2D(uTex,t+dc).r, texture2D(uTex,t+dc*.45).g, texture2D(uTex,t-dc*.7).b);
   c += ring*.05;
   gl_FragColor = vec4(c,1.)*smoothstep(0.,.3,uAmt);
 }`;

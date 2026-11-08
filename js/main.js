@@ -3,6 +3,7 @@ import { ticker, lerp, damp, finePointer, reduced, opt, esc } from './lib.js';
 import { initFx, fxHide } from './fx.js';
 import { initScan } from './scan.js';
 import { sound } from './sound.js';
+import { cursorMode, nextCursor } from './cursor-mode.js';
 import { mountHome } from './views/home.js';
 import { mountAdvertising } from './views/advertising.js';
 import { mountDesign } from './views/design.js';
@@ -72,6 +73,23 @@ const applyFont = () => {
 };
 typeBtn.addEventListener('click', () => { fontI = (fontI + 1) % FONTS.length; applyFont(); });
 applyFont();
+
+// Cuatro maquetas del menú, como el selector de tipografías
+const MENUS = [['lista', 'Lista'], ['contactos', 'Hoja de contactos'], ['indice', 'Índice gigante'], ['tira', 'Tira de película']];
+const menuBtn = document.createElement('button');
+menuBtn.type = 'button';
+menuBtn.className = 'panel__type panel__menu';
+menuBtn.setAttribute('data-cursor-ui', '');
+panel.append(menuBtn);
+let menuI = 0;
+try { menuI = Math.max(0, MENUS.findIndex(m => m[0] === localStorage.getItem('dd-menu'))); } catch {}
+const applyMenu = () => {
+  panel.dataset.design = MENUS[menuI][0];
+  menuBtn.innerHTML = `<span>Diseño de menú ${menuI + 1}/${MENUS.length}</span><b>${MENUS[menuI][1]}</b>`;
+  try { localStorage.setItem('dd-menu', MENUS[menuI][0]); } catch {}
+};
+menuBtn.addEventListener('click', e => { e.stopPropagation(); menuI = (menuI + 1) % MENUS.length; applyMenu(); });
+applyMenu();
 
 const toggle = $('menu-toggle');
 const setMenu = open => {
@@ -162,22 +180,6 @@ function swap(route) {
 
 const wait = ms => new Promise(r => setTimeout(r, reduced ? 20 : ms));
 
-// Entrada con aberración: rojo y azul llegan separados y se juntan en foco
-const caR = document.getElementById('ca-r'), caB = document.getElementById('ca-b');
-let caStop = null;
-function aberrate(px) {
-  if (reduced || !caR) return;
-  caStop?.();
-  const t0 = performance.now(), dur = 700;
-  view.style.filter = 'url(#ca)';
-  caStop = ticker.add(() => {
-    const p = Math.min(1, (performance.now() - t0) / dur), k = (1 - p) ** 3;
-    caR.setAttribute('dx', (px * k).toFixed(2)); caR.setAttribute('dy', (px * .25 * k).toFixed(2));
-    caB.setAttribute('dx', (-px * k).toFixed(2)); caB.setAttribute('dy', (-px * .25 * k).toFixed(2));
-    if (p >= 1) { view.style.filter = ''; caStop(); caStop = null; }
-  });
-}
-
 // Hora y lente: cada sección y cada proyecto tiene su propia óptica
 const hudT = $('hud-t'), hudL = $('hud-l');
 const LENSES = { home: '50MM · F/1.4', advertising: '35MM · F/2.0', design: '100MM MACRO · F/4', content: '24MM · F/2.8 · 9:16', about: '85MM · F/1.2' };
@@ -187,53 +189,77 @@ const lensFor = route => {
   for (const c of route.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return `${[24, 28, 35, 50, 85, 105][h % 6]}MM · F/${['1.4', '2.0', '2.8', '4'][(h >> 3) % 4]}`;
 };
+const hud = $('hud'), hudC = $('hud-c');
+const showCursor = () => { hudC.textContent = cursorMode().name; };
+showCursor();
+hud.addEventListener('click', () => {
+  nextCursor();
+  showCursor();
+  hud.classList.remove('is-flash'); void hud.offsetWidth; hud.classList.add('is-flash');
+  sound.shutter();
+});
 const clock = () => { hudT.textContent = `MAD ${new Date().toLocaleTimeString('es-ES', { hour12: false, timeZone: 'Europe/Madrid' })}`; };
 clock();
 setInterval(clock, 1000);
 
-// Modo negativo: un círculo de lente se abre desde el cursor e invierte toda la web
-const neg = $('neg');
-let negOn = false, lastX = innerWidth / 2, lastY = innerHeight / 2;
-addEventListener('pointerdown', e => { lastX = e.clientX; lastY = e.clientY; }, { passive: true });
-addEventListener('pointermove', e => { lastX = e.clientX; lastY = e.clientY; }, { passive: true });
-export function toggleNegative(x = lastX, y = lastY) {
-  negOn = !negOn;
-  neg.style.setProperty('--x', `${x}px`);
-  neg.style.setProperty('--y', `${y}px`);
-  document.documentElement.classList.toggle('is-negative', negOn);
+// Modo nocturno: fondo negro y colores suaves; las fotos no se tocan.
+// Se abre como un círculo de lente desde la pastilla
+const nightBtn = $('night');
+let nightOn = false;
+try { nightOn = localStorage.getItem('dd-night') === '1'; } catch {}
+const setNight = on => {
+  nightOn = on;
+  document.documentElement.classList.toggle('is-night', on);
+  nightBtn.setAttribute('aria-pressed', on);
+  nightBtn.querySelector('b').textContent = on ? 'Noche' : 'Día';
+  document.querySelector('meta[name=theme-color]').content = on ? '#111110' : '#eeeeeb';
+  try { localStorage.setItem('dd-night', on ? '1' : '0'); } catch {}
+};
+setNight(nightOn);
+export function toggleNight() {
+  const b = nightBtn.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
   sound.copier();
+  if (!document.startViewTransition || reduced) { setNight(!nightOn); return; }
+  const t = document.startViewTransition(() => setNight(!nightOn));
+  t.ready.then(() => {
+    const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    document.documentElement.animate({ clipPath: [`circle(0 at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`] },
+      { duration: 900, easing: 'cubic-bezier(.76,0,.24,1)', pseudoElement: '::view-transition-new(root)' });
+  }).catch(() => {});
 }
+nightBtn.addEventListener('click', toggleNight);
 addEventListener('keydown', e => {
   if (e.target.closest?.('input,textarea') || e.metaKey || e.ctrlKey) return;
-  if (e.key === 'n' || e.key === 'N') toggleNegative();
+  if (e.key === 'n' || e.key === 'N') toggleNight();
 });
-const negBtn = document.createElement('button');
-negBtn.type = 'button';
-negBtn.className = 'panel__type panel__neg';
-negBtn.setAttribute('data-cursor-ui', '');
-negBtn.innerHTML = '<span>Modo negativo · tecla N</span><b>On / Off</b>';
-panel.append(negBtn);
-negBtn.addEventListener('click', e => { e.stopPropagation(); toggleNegative(innerWidth / 2, innerHeight / 2); });
 
-// Transición directa: la página se va por el borde de la lente (desenfoque y color
-// separado) y la nueva entra enfocando. Sin pantallas intermedias.
+// Transición: la lente se cierra desenfocando de fuera hacia dentro y, al abrirse,
+// ya estás en la página nueva
 const lens = $('lens');
+const ease = p => (p < .5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2);
+const iris = (from, to, dur) => new Promise(done => {
+  if (reduced) { done(); return; }
+  const t0 = performance.now();
+  const stop = ticker.add(() => {
+    const p = Math.min(1, (performance.now() - t0) / dur), k = ease(p);
+    const c = from + (to - from) * k; // 0 abierta, 1 cerrada
+    lens.style.setProperty('--ir', `${(1 - c) * 125 - 15}%`);
+    lens.style.setProperty('--lb', `${(c * 22).toFixed(1)}px`);
+    lens.style.opacity = c > .001 ? 1 : 0;
+    if (p >= 1) { stop(); done(); }
+  });
+});
 async function navigate() {
   const route = parse();
   if (route.key === currentKey) return;
   if (busy) { queued = true; return; }
   busy = true;
   sound.shutter();
-  view.classList.add('is-leaving');
-  lens.classList.remove('is-on');
-  void lens.offsetWidth;
-  lens.classList.add('is-on');
-  await wait(200);
+  await iris(0, 1, 460);
   try { swap(route); } catch (err) { console.error(err); }
-  view.classList.remove('is-leaving');
   view.classList.add('is-entering');
-  setTimeout(() => view.classList.remove('is-entering'), 650);
-  aberrate(route.name === 'project' ? 26 : 16);
+  setTimeout(() => view.classList.remove('is-entering'), 700);
+  await iris(1, 0, 620);
   view.focus({ preventScroll: true });
   busy = false;
   if (queued) { queued = false; navigate(); }
