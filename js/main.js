@@ -3,7 +3,7 @@ import { ticker, lerp, damp, finePointer, reduced, opt, esc } from './lib.js';
 import { initFx, fxHide } from './fx.js';
 import { initScan } from './scan.js';
 import { sound } from './sound.js';
-import { cursorMode, nextCursor } from './cursor-mode.js';
+import { cursorMode, cursorIndex, nextCursor, onCursorChange, glassMap, CURSORS } from './cursor-mode.js';
 import { mountHome } from './views/home.js';
 import { mountAdvertising } from './views/advertising.js';
 import { mountDesign } from './views/design.js';
@@ -47,49 +47,15 @@ panel.innerHTML = WORLDS.map((w, i) => `
     <span class="panel__note">${COUNTS[w.id] ?? ''}</span>
   </a>`).join('');
 
-// Explorador de tipografías (provisional): se elige una y queda guardada
-const FONTS = [
-  ['Space Mono', .62], ['VT323', 1], ['JetBrains Mono', .64], ['IBM Plex Mono', .64], ['DM Mono', .66],
-  ['Martian Mono', .56], ['Syne Mono', .7], ['Fragment Mono', .66], ['Major Mono Display', .56],
-];
-const typeBtn = document.createElement('button');
-typeBtn.type = 'button';
-typeBtn.className = 'panel__type';
-typeBtn.setAttribute('data-cursor-ui', '');
-panel.append(typeBtn);
-let fontI = 0;
-try { fontI = Math.max(0, FONTS.findIndex(f => f[0] === localStorage.getItem('dd-font2'))); } catch {}
-// Una sola familia para todo: títulos, textos y pies de imagen
-const applyFont = () => {
-  const [name, scale] = FONTS[fontI];
-  const fam = `'${name}', 'Space Mono', ui-monospace, monospace`;
+// Tipografía única: Syne Mono para todo (títulos, textos y pies)
+{
+  const fam = "'Syne Mono', 'Space Mono', ui-monospace, monospace";
   document.documentElement.style.setProperty('--pixel', fam);
   document.documentElement.style.setProperty('--mono', fam);
-  document.documentElement.style.setProperty('--ds', scale);
-  document.documentElement.dataset.font = name;
-  typeBtn.innerHTML = `<span>Tipografía ${fontI + 1}/${FONTS.length}</span><b>${name}</b>`;
-  try { localStorage.setItem('dd-font2', name); } catch {}
-  dispatchEvent(new Event('fontchange'));
-};
-typeBtn.addEventListener('click', () => { fontI = (fontI + 1) % FONTS.length; applyFont(); });
-applyFont();
-
-// Cuatro maquetas del menú, como el selector de tipografías
-const MENUS = [['lista', 'Lista'], ['contactos', 'Hoja de contactos'], ['indice', 'Índice gigante'], ['tira', 'Tira de película']];
-const menuBtn = document.createElement('button');
-menuBtn.type = 'button';
-menuBtn.className = 'panel__type panel__menu';
-menuBtn.setAttribute('data-cursor-ui', '');
-panel.append(menuBtn);
-let menuI = 0;
-try { menuI = Math.max(0, MENUS.findIndex(m => m[0] === localStorage.getItem('dd-menu'))); } catch {}
-const applyMenu = () => {
-  panel.dataset.design = MENUS[menuI][0];
-  menuBtn.innerHTML = `<span>Diseño de menú ${menuI + 1}/${MENUS.length}</span><b>${MENUS[menuI][1]}</b>`;
-  try { localStorage.setItem('dd-menu', MENUS[menuI][0]); } catch {}
-};
-menuBtn.addEventListener('click', e => { e.stopPropagation(); menuI = (menuI + 1) % MENUS.length; applyMenu(); });
-applyMenu();
+  document.documentElement.style.setProperty('--ds', .7);
+  document.documentElement.dataset.font = 'Syne Mono';
+  document.fonts?.load("400 20px 'Syne Mono'").then(() => dispatchEvent(new Event('fontchange'))).catch(() => {});
+}
 
 const toggle = $('menu-toggle');
 const setMenu = open => {
@@ -119,21 +85,57 @@ export function setCursorLabel(html) {
 }
 if (finePointer) {
   document.documentElement.classList.add('has-cursor');
-  // Lente: un círculo de cristal con el filo separado en rojo, amarillo y azul;
-  // al moverte se estira en la dirección del movimiento, como una gota
-  let tx = innerWidth / 2, ty = innerHeight / 2, x = tx, y = ty, s = 0, a = 0;
+  // Cristal líquido: en Chrome refracta de verdad lo que hay debajo (filtro #lg) con el
+  // color separado; en el resto de navegadores, cristal saturado con el filo en color
+  const liquid = !!window.chrome && CSS.supports('backdrop-filter', 'url(#lg)');
+  document.documentElement.classList.toggle('has-liquid', liquid);
+  const lgMap = $('lg-map');
+  let cfg = null;
+  onCursorChange(c => {
+    cfg = c;
+    cursor.style.setProperty('--cw', `${c.w}px`);
+    cursor.style.setProperty('--ch', `${c.h}px`);
+    cursor.style.setProperty('--cr', `${c.r}px`);
+    if (liquid) {
+      lgMap.setAttribute('href', glassMap(c.w, c.h, c.r));
+      lgMap.setAttribute('width', c.w); lgMap.setAttribute('height', c.h);
+      document.querySelectorAll('#lg feDisplacementMap').forEach((d, k) => d.setAttribute('scale', (c.glass * [1, .86, .72][k]).toFixed(1)));
+    }
+  });
+  let tx = innerWidth / 2, ty = innerHeight / 2, x = tx, y = ty, vx = 0, vy = 0, s = 0, a = 0, rot = 0, k = 1, t = 0;
   addEventListener('pointermove', e => { tx = e.clientX; ty = e.clientY; }, { passive: true });
   ticker.add(dt => {
-    const px = x, py = y;
-    x = damp(x, tx, 20, dt); y = damp(y, ty, 20, dt);
-    const vx = (x - px) / Math.max(dt, .001), vy = (y - py) / Math.max(dt, .001);
-    const sp = Math.hypot(vx, vy);
-    s = damp(s, Math.min(sp / 2600, .55), 10, dt);
-    if (sp > 40) a = Math.atan2(vy, vx);
+    t += dt;
+    const px = x, py = y, m = cfg.motion;
+    if (m === 'spring') {
+      // Muelle: llega, se pasa un poco y vuelve
+      vx += ((tx - x) * 260 - vx * 20) * dt; vy += ((ty - y) * 260 - vy * 20) * dt;
+      x += vx * dt; y += vy * dt;
+    } else {
+      const f = m === 'lag' ? 7 : m === 'tilt' ? 16 : m === 'wobble' ? 12 : 20;
+      x = damp(x, tx, f, dt); y = damp(y, ty, f, dt);
+    }
+    const ux = (x - px) / Math.max(dt, .001), uy = (y - py) / Math.max(dt, .001);
+    const sp = Math.hypot(ux, uy);
+    s = damp(s, Math.min(sp / 2600, .5), 10, dt);
+    if (sp > 40) a = Math.atan2(uy, ux);
+    const ui = document.body.classList.contains('cursor-ui'), down = document.body.classList.contains('cursor-down');
+    k = damp(k, down ? .82 : ui ? 1.22 : 1, 12, dt);
     const label = document.body.classList.contains('cursor-label');
-    cursor.style.transform = label
-      ? `translate3d(${x}px,${y}px,0) translate(-50%,-50%)`
-      : `translate3d(${x}px,${y}px,0) translate(-50%,-50%) rotate(${a}rad) scale(${1 + s},${1 - s * .45})`;
+    let tr = '';
+    if (label) tr = '';
+    else if (m === 'stretch' || m === 'lag') tr = `rotate(${a}rad) scale(${(1 + s) * k},${(1 - s * .45) * k})`;
+    else if (m === 'spring') tr = `rotate(${a}rad) scale(${(1 + s * .6) * k},${(1 - s * .3) * k})`;
+    else if (m === 'tilt') { rot = damp(rot, Math.max(-28, Math.min(28, ux * .02)), 8, dt); tr = `rotate(${rot}deg) scale(${k})`; }
+    else if (m === 'wobble') {
+      // Burbuja: el contorno respira y se deforma con la velocidad
+      const w = 1 + s * 3;
+      const r1 = 50 + Math.sin(t * 2.1) * 8 * w, r2 = 50 + Math.sin(t * 2.7 + 1) * 8 * w, r3 = 50 + Math.sin(t * 1.8 + 2) * 8 * w, r4 = 50 + Math.sin(t * 2.4 + 3) * 8 * w;
+      cursor.style.borderRadius = `${r1}% ${100 - r1}% ${r3}% ${100 - r3}% / ${r2}% ${r4}% ${100 - r4}% ${100 - r2}%`;
+      tr = `scale(${(1 + s * .5) * k},${(1 - s * .25) * k})`;
+    }
+    if (m !== 'wobble' && cursor.style.borderRadius) cursor.style.borderRadius = '';
+    cursor.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%) ${tr}`;
     cursor.style.setProperty('--ca', `${(1.5 + s * 9).toFixed(1)}px`);
   });
   let lastUi = null;
@@ -190,7 +192,7 @@ const lensFor = route => {
   return `${[24, 28, 35, 50, 85, 105][h % 6]}MM · F/${['1.4', '2.0', '2.8', '4'][(h >> 3) % 4]}`;
 };
 const hud = $('hud'), hudC = $('hud-c');
-const showCursor = () => { hudC.textContent = cursorMode().name; };
+const showCursor = () => { hudC.textContent = `Cursor ${cursorIndex() + 1}/${CURSORS.length} · ${cursorMode().name}`; };
 showCursor();
 hud.addEventListener('click', () => {
   nextCursor();
@@ -269,30 +271,46 @@ addEventListener('hashchange', navigate);
 // ---------- Arranque ----------
 // Carga: tu identidad pasando por la fotocopiadora mientras llega todo
 async function boot() {
-  const count = $('loader-count'), loader = $('loader'), shot = $('loader-shot');
-  const shots = ['disc', 'mask', 'tribal', 'tunnel', 'inverted', 'detail'].map(n => `assets/id/${n}.webp`);
-  let shown = 0, target = 30, si = 0;
-  const flip = setInterval(() => { shot.src = shots[si++ % shots.length]; }, 260);
+  const count = $('loader-count'), loader = $('loader'), shot = $('loader-shot'), dist = $('loader-dist'), ring = $('loader-ring');
+  // Anillo de enfoque con su escala de distancias
+  const marks = ['∞', '10', '5', '3', '2', '1.5', '1.2', '1', '.8', '.7'];
+  ring.insertAdjacentHTML('beforeend', Array.from({ length: 72 }, (_, i) => {
+    const big = i % 4 === 0, a = i * 5;
+    return `<g transform="rotate(${a} 100 100)"><path d="M100 ${big ? 4 : 6}v${big ? 9 : 5}"/>${big && i / 4 < marks.length ? `<text x="100" y="24" text-anchor="middle">${marks[i / 4]}</text>` : ''}</g>`;
+  }).join(''));
+  const shots = ['inverted', 'mask', 'disc', 'tribal', 'tunnel', 'detail'].map(n => `assets/id/${n}.webp`);
+  let shown = 0, target = 20, si = 0;
+  const flip = setInterval(() => { shot.src = shots[++si % shots.length]; }, 520);
   const stopCount = ticker.add(dt => {
-    shown = lerp(shown, target, 1 - Math.exp(-4 * dt));
+    shown = lerp(shown, target, 1 - Math.exp(-3 * dt));
+    const p = shown / 100;
     count.textContent = String(Math.round(shown)).padStart(3, '0');
-    loader.style.setProperty('--p', (shown / 100).toFixed(3));
+    dist.textContent = marks[Math.min(marks.length - 1, Math.floor(p * marks.length))];
+    loader.style.setProperty('--p', p.toFixed(3));
   });
-  const fonts = Promise.all([
-    document.fonts.load(`400 20px ${getComputedStyle(document.documentElement).getPropertyValue('--mono')}`),
-  ]).catch(() => {});
-  setTimeout(() => { target = 70; }, 500);
+  const fonts = document.fonts.load("400 20px 'Syne Mono'").catch(() => {});
+  setTimeout(() => { target = 55; }, 700);
   await Promise.race([fonts, new Promise(r => setTimeout(r, 1500))]);
-  await wait(900);
+  await wait(1500);
   target = 100;
-  await wait(650);
-  swap(parse());
-  stopCount();
+  await wait(1100);
   clearInterval(flip);
+  shot.src = shots[0];
+  swap(parse());
   initFx($('fx'));
-  loader.classList.add('is-out');
   document.body.classList.remove('is-loading');
-  view.classList.add('is-entering');
-  setTimeout(() => { loader.remove(); view.classList.remove('is-entering'); }, 900);
+  // La lente se abre desde el centro hasta ocupar la pantalla
+  const t0 = performance.now(), dur = reduced ? 10 : 1100;
+  const R1 = Math.hypot(innerWidth, innerHeight) / 2 + 40;
+  await new Promise(done => {
+    const stop = ticker.add(() => {
+      const p = Math.min(1, (performance.now() - t0) / dur), k = ease(p);
+      loader.style.setProperty('--hole', `${(k * R1).toFixed(1)}px`);
+      loader.style.setProperty('--open', k.toFixed(3));
+      if (p >= 1) { stop(); done(); }
+    });
+  });
+  stopCount();
+  loader.remove();
 }
 boot();

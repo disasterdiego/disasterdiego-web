@@ -27,15 +27,6 @@ export function mountDesign(root) {
         }).join('')}
       </div>
       <i class="slot-edge slot-edge--l" aria-hidden="true"></i><i class="slot-edge slot-edge--r" aria-hidden="true"></i>
-      <div class="slot-head">
-        <h2 class="display" id="d-t"></h2>
-        <span id="d-n"></span>
-      </div>
-      <div class="slot-foot">
-        <span id="d-c"></span>
-        <span class="slot-foot__bar"><i id="d-b"></i></span>
-        <span>F73 — ${isNarrow() ? 'Desliza' : 'Scroll ↕ proyecto · ↔ fotos'}</span>
-      </div>
       <svg class="dial" id="dial" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="97"/><circle cx="100" cy="100" r="13"/>${tickSvg}</svg>
     </div>`;
 
@@ -53,6 +44,17 @@ export function mountDesign(root) {
 
   const go = i => { tp += wrap(i - mod(tp, n), n); };
   const index = createIndex(root, DESIGN, { onEnter: go, onPick: go });
+  // Los datos del proyecto viven en el índice, no encima de las fotos
+  const info = document.createElement('div');
+  info.className = 'dinfo';
+  info.innerHTML = `<span id="d-n"></span><span id="d-c"></span><span class="dinfo__bar"><i id="d-b"></i></span><span class="dinfo__hint">${isNarrow() ? 'Desliza' : 'Scroll ↕ proyecto · ↔ fotos'}</span>`;
+  root.querySelector('.side').append(info);
+  // Fuera de Chrome los filtros SVG no se ven en 3D: se usa desenfoque y sombras de color
+  const svgOk = !!window.chrome;
+  const CSSCA = {
+    near: 'blur(1.6px) drop-shadow(-6px 0 0 rgb(0 110 255 / .55)) drop-shadow(6px 0 0 rgb(255 40 40 / .55)) drop-shadow(0 3px 0 rgb(0 190 90 / .35))',
+    far: 'blur(3.4px) drop-shadow(-14px 0 0 rgb(0 110 255 / .5)) drop-shadow(14px 0 0 rgb(255 40 40 / .5)) drop-shadow(0 5px 0 rgb(0 190 90 / .3))',
+  };
 
   const fit = () => {
     const b = wheel.getBoundingClientRect();
@@ -74,8 +76,7 @@ export function mountDesign(root) {
   const setCurrent = i => {
     cur = i;
     const d = DESIGN[i];
-    $('#d-t').textContent = d.title;
-    $('#d-n').textContent = `${pad(i + 1)} / ${pad(n)}`;
+    $('#d-n').textContent = `${pad(i + 1)}/${pad(n)}`;
     $('#d-c').textContent = `${d.slides.length} piezas`;
     index.setActive(i);
     rows.forEach((r, k) => {
@@ -135,7 +136,7 @@ export function mountDesign(root) {
       r.el.style.opacity = clamp(1.2 - ad * .22, 0, 1);
       // Fuera de la ranura, aberración cromática que crece con la distancia
       const lvl = ad < .5 ? '' : ad < 1.5 ? 'near' : 'far';
-      if (lvl !== r.lvl) { r.lvl = lvl; r.el.style.filter = lvl ? `url(#ca-${lvl})` : 'none'; }
+      if (lvl !== r.lvl) { r.lvl = lvl; r.el.style.filter = !lvl ? 'none' : svgOk ? `url(#ca-${lvl})` : CSSCA[lvl]; }
       // Cada carrete avanza solo, despacio; tus gestos lo empujan
       if (!reduced) r.tpan += r.speed * dt * (r.i === cur && userT > 0 ? 0 : 1);
       r.pan = damp(r.pan, r.tpan, 7, dt);

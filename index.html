@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://res.cloudinary.com">
   <link rel="preconnect" href="https://images.unsplash.com">
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=VT323&family=JetBrains+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=DM+Mono:wght@400;500&family=Martian+Mono:wght@400;700&family=Syne+Mono&family=Fragment+Mono&family=Major+Mono+Display&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne+Mono&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
   <script type="module" src="js/main.js"></script>
 </head>
@@ -55,15 +55,32 @@
       <feBlend in="ro" in2="g" mode="screen" result="rg"/>
       <feBlend in="rg" in2="bo" mode="screen"/>
     </filter>
-    <filter id="ca-near" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="s"/><feColorMatrix in="s" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/><feOffset in="r" dx="-5" dy="1" result="ro"/><feColorMatrix in="s" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/><feColorMatrix in="s" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/><feOffset in="b" dx="5" dy="-1" result="bo"/><feBlend in="ro" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="bo" mode="screen"/></filter>
-    <filter id="ca-far" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="3.4" result="s"/><feColorMatrix in="s" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/><feOffset in="r" dx="-13" dy="3" result="ro"/><feColorMatrix in="s" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/><feColorMatrix in="s" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/><feOffset in="b" dx="13" dy="-3" result="bo"/><feBlend in="ro" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="bo" mode="screen"/></filter>
+    <!-- Cristal líquido del cursor: tres desplazamientos (rojo, verde, azul) con el mismo mapa -->
+    <filter id="lg" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feImage id="lg-map" x="0" y="0" width="58" height="58" preserveAspectRatio="none" result="map"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="26" xChannelSelector="R" yChannelSelector="G" result="dr"/>
+      <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="22" xChannelSelector="R" yChannelSelector="G" result="dg"/>
+      <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="19" xChannelSelector="R" yChannelSelector="G" result="db"/>
+      <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/>
+      <feBlend in="r" in2="g" mode="screen" result="rg"/>
+      <feBlend in="rg" in2="b" mode="screen"/>
+    </filter>
+    <filter id="ca-near" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="s"/><feColorMatrix in="s" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/><feOffset in="r" dx="-8" dy="2" result="ro"/><feColorMatrix in="s" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/><feColorMatrix in="s" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/><feOffset in="b" dx="8" dy="-2" result="bo"/><feBlend in="ro" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="bo" mode="screen"/></filter>
+    <filter id="ca-far" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="3.4" result="s"/><feColorMatrix in="s" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/><feOffset in="r" dx="-18" dy="4" result="ro"/><feColorMatrix in="s" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/><feColorMatrix in="s" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/><feOffset in="b" dx="18" dy="-4" result="bo"/><feBlend in="ro" in2="g" mode="screen" result="rg"/><feBlend in="rg" in2="bo" mode="screen"/></filter>
   </svg>
   <div class="grain" aria-hidden="true"></div>
+  <!-- CARGA: una lente que enfoca. Al terminar se abre y deja ver la web -->
   <div class="loader" id="loader" aria-hidden="true">
-    <p class="loader__marks"><span>]*[</span><span>INDENTITY //</span><span>EXPLORATIONS</span><span>NOT A REBRANDING</span><span>]-[</span></p>
-    <div class="loader__slot"><img id="loader-shot" src="assets/id/disc.webp" alt=""><i class="loader__scan"></i></div>
-    <p class="loader__word">disaster<em>ID</em>ego</p>
-    <div class="loader__foot"><span>F73 — A B C D</span><span class="loader__bar"><i></i></span><span>[<b id="loader-count">000</b>]</span></div>
+    <p class="loader__top"><span>disasterdiego</span><span>ART DIRECTION — ADVERTISING · DESIGN · CONTENT</span></p>
+    <div class="loader__lens" id="loader-lens">
+      <div class="loader__glass"><img id="loader-shot" src="assets/id/inverted.webp" alt=""></div>
+      <svg class="loader__ring" id="loader-ring" viewBox="0 0 200 200"><circle cx="100" cy="100" r="98"/></svg>
+      <i class="loader__cross"></i>
+    </div>
+    <p class="loader__word">disasterdiego</p>
+    <p class="loader__foot"><span>F/1.4 · <em id="loader-dist">∞</em></span><span>ENFOCANDO</span><span>[<b id="loader-count">000</b>]</span></p>
   </div>
     <div class="cursor" id="cursor" aria-hidden="true"></div>
   <noscript><p style="padding:2rem 1rem">Esta web necesita JavaScript para mostrar el portfolio.</p></noscript>

@@ -9,7 +9,7 @@ const FS = `precision highp float;
 varying vec2 vUv;
 uniform sampler2D uTop, uUnder, uMask, uInk;
 uniform vec2 uFitTop, uFitUnder, uMouse, uPx;
-uniform float uSim, uT, uAspect, uHead, uHeadA;
+uniform float uSim, uT, uAspect, uHead, uHeadA, uNight;
 float lum(vec3 c){ return dot(c,vec3(.3,.59,.11)); }
 vec2 fit(vec2 uv, vec2 f){ return (uv-.5)*f+.5; }
 vec3 under(vec2 uv, float bias){
@@ -27,7 +27,8 @@ vec3 under(vec2 uv, float bias){
 // La cabeza de la lente se calcula aquí, sin píxeles; el rastro viene de la máscara
 float M(vec2 uv){
   float d = length((uv-uMouse)*vec2(uAspect,1.));
-  float head = smoothstep(uHead, uHead*.5, d)*uHeadA;
+  // Filo firme: la gota es sólida, como cristal líquido, también en reposo
+  float head = smoothstep(uHead, uHead*.88, d)*uHeadA;
   return max(texture2D(uMask, uv).r, head);
 }
 void main(){
@@ -39,11 +40,19 @@ void main(){
   // Ojo de pez: dentro del trazo la imagen se amplía; en el filo se curva y se desenfoca
   vec2 lensUv = uv - (uv-uMouse)*m*.08 - g*.04*rim;
   vec2 d = g*.045*rim + (uv-uMouse)*m*.006;
-  float bias = rim*2.5;
+  float bias = rim*.5;
   vec3 un = vec3(under(lensUv+d,bias).r, under(lensUv+d*.45,bias).g, under(lensUv-d*.7,bias).b);
   vec2 tu = fit(uv - g*.02*rim, uFitTop);
   vec2 td = g*.03*rim*uFitTop;
   vec3 top = vec3(texture2D(uTop,tu+td,bias*.6).r, texture2D(uTop,tu+td*.45,bias*.6).g, texture2D(uTop,tu-td*.7,bias*.6).b);
+  // Noche: mapa de degradado. Los blancos del fondo pasan a negro y la piel se queda;
+  // debajo, los grafitis se invierten (trazo claro sobre negro)
+  if(uNight > .5){
+    float lt = lum(top);
+    float k = smoothstep(.6,.93,lt);
+    top = mix(top, vec3(.065,.065,.062), k);
+    un = mix(un, vec3(.94)-un*.88, 1.);
+  }
   float reveal = smoothstep(.4,.62,m);
   vec3 col = mix(top, un, reveal);
   // Brillo de cristal en el filo
@@ -251,14 +260,10 @@ export function mountHome(root) {
     gl.uniform1f(U.uHead, base() / H);
     gl.uniform1f(U.uHeadA, headA);
     gl.uniform1f(U.uT, t);
+    gl.uniform1f(U.uNight, document.documentElement.classList.contains('is-night') ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-    // Leve giro en 3D hacia el cursor
-    const ax = finePointer && touched ? mx / W - .5 : Math.sin(t * .3) * .2;
-    const ay = finePointer && touched ? my / H - .5 : Math.sin(t * .4) * .15;
-    rx = damp(rx, reduced ? 0 : -ay * 4, 3, dt);
-    ry = damp(ry, reduced ? 0 : ax * 6, 3, dt);
-    tilt.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) scale(1.04)`;
+    tilt.style.transform = 'none';
   });
 
   return () => {
