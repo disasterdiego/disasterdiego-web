@@ -26,9 +26,6 @@ export function mountDesign(root) {
           return `<div class="drow" data-i="${i}"><div class="drow__in">${set}${set}${set}</div></div>`;
         }).join('')}
       </div>
-      <div class="onion onion--top"></div>
-      <div class="onion onion--bot"></div>
-      <div class="slit" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       <i class="slot-edge slot-edge--l" aria-hidden="true"></i><i class="slot-edge slot-edge--r" aria-hidden="true"></i>
       <div class="slot-head">
         <h2 class="display" id="d-t"></h2>
@@ -135,7 +132,10 @@ export function mountDesign(root) {
       r.el.style.visibility = show ? '' : 'hidden';
       if (!show) continue;
       r.el.style.transform = `translateZ(${-R}px) rotateX(${-d * STEP}deg) translateZ(${R}px)`;
-      r.el.style.opacity = clamp(1.25 - ad * .3, 0, 1);
+      r.el.style.opacity = clamp(1.2 - ad * .22, 0, 1);
+      // Fuera de la ranura, aberración cromática que crece con la distancia
+      const lvl = ad < .5 ? '' : ad < 1.5 ? 'near' : 'far';
+      if (lvl !== r.lvl) { r.lvl = lvl; r.el.style.filter = lvl ? `url(#ca-${lvl})` : 'none'; }
       // Cada carrete avanza solo, despacio; tus gestos lo empujan
       if (!reduced) r.tpan += r.speed * dt * (r.i === cur && userT > 0 ? 0 : 1);
       r.pan = damp(r.pan, r.tpan, 7, dt);

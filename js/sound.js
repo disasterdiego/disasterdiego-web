@@ -54,4 +54,8 @@ export const sound = {
   },
   click() { tone(820, .07, .035); },
   swish() { noise(.55, .018, 500, 2600); },
+  // Obturador: dos chasquidos secos, cortinilla abre y cierra
+  shutter() { noise(.035, .06, 4200, 2600); setTimeout(() => noise(.05, .045, 3000, 1500), 75); },
+  // Fotocopiadora: barrido de luz y motor
+  copier() { noise(.9, .022, 600, 3400); tone(110, .8, .02); },
 };

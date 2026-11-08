@@ -129,26 +129,80 @@ function mountOrbit(root) {
   };
 }
 
+// Lente: todo está escrito, pero fuera de foco y con el color separado.
+// Solo se lee lo que pasa por la lente. La rueda (o pellizcar) cambia su tamaño.
+function mountLens(root) {
+  const brands = ABOUT.brands.map(b => `<span>${esc(b)}</span>`).join('');
+  const body = `
+    <p class="alens__k">Bio</p>
+    <h1 class="alens__bio">${esc(ABOUT.bio)}</h1>
+    <p class="alens__now"><span>Ahora</span> ${nowLine}</p>
+    <p class="alens__k">Marcas</p>
+    <p class="alens__brands">${brands}</p>
+    <div class="alens__cols"><div><p class="alens__k">Recorrido</p>${rows(ABOUT.career)}</div><div><p class="alens__k">Premios</p>${rows(ABOUT.awards)}</div></div>`;
+  root.innerHTML = `
+    <div class="alens" id="alens">
+      <div class="alens__layer alens__blur" aria-hidden="true">${body}</div>
+      <div class="alens__layer alens__sharp" id="sharp">${body}</div>
+      <i class="alens__ring" id="ring" aria-hidden="true"></i>
+      <p class="alens__hint" id="hint">${isNarrow() ? 'Arrastra la lente para leer' : 'Mueve la lente para leer · rueda: enfoque'}</p>
+    </div>`;
+  const box = root.querySelector('#alens'), sharp = root.querySelector('#sharp'), ring = root.querySelector('#ring');
+  let W = box.clientWidth, H = box.clientHeight;
+  let tx = W * .3, ty = H * .3, x = tx, y = ty, R = isNarrow() ? 110 : 170, tR = R, touched = 0, idle = 0;
+  const size = () => { W = box.clientWidth; H = box.clientHeight; };
+  addEventListener('resize', size, { passive: true });
+  const onMove = e => {
+    const b = box.getBoundingClientRect();
+    tx = e.clientX - b.left; ty = e.clientY - b.top; touched = 3;
+  };
+  box.addEventListener('pointermove', onMove, { passive: true });
+  box.addEventListener('pointerdown', onMove, { passive: true });
+  const onWheel = e => { e.preventDefault(); tR = Math.max(80, Math.min(340, tR - e.deltaY * .4)); };
+  box.addEventListener('wheel', onWheel, { passive: false });
+  const stop = ticker.add((dt, t) => {
+    touched = Math.max(0, touched - dt);
+    if (!touched && !reduced) {
+      // Sin cursor, la lente recorre el texto sola
+      idle += dt;
+      tx = W * (.5 + Math.sin(idle * .35) * .34);
+      ty = H * (.45 + Math.sin(idle * .52 + 1) * .3);
+    }
+    const px = x, py = y;
+    x = damp(x, tx, 9, dt); y = damp(y, ty, 9, dt);
+    R = damp(R, tR, 8, dt);
+    const sp = Math.min(Math.hypot(x - px, y - py) / Math.max(dt, .001) / 1800, 1);
+    const m = `radial-gradient(circle ${R.toFixed(0)}px at ${x.toFixed(1)}px ${y.toFixed(1)}px, #000 62%, transparent 100%)`;
+    sharp.style.webkitMaskImage = m;
+    sharp.style.maskImage = m;
+    ring.style.transform = `translate3d(${x - R}px,${y - R}px,0)`;
+    ring.style.width = ring.style.height = `${R * 2}px`;
+    ring.style.setProperty('--ca', `${(2 + sp * 10).toFixed(1)}px`);
+  });
+  return () => { stop(); removeEventListener('resize', size); };
+}
+
 export function mountAbout(root) {
-  let mode = 'orbit', off = null;
-  try { mode = sessionStorage.getItem('about-mode') === 'sheets' ? 'sheets' : 'orbit'; } catch {}
+  let mode = 'lens', off = null;
+  try { mode = ['sheets', 'orbit', 'lens'].find(m => m === sessionStorage.getItem('about-mode2')) || 'lens'; } catch {}
   const slot = setBarSlot(`
     <div class="switch" role="group" aria-label="Versión de About">
       <button type="button" data-mode="sheets" data-cursor-ui>Hojas</button>
       <button type="button" data-mode="orbit" data-cursor-ui>Órbita</button>
+      <button type="button" data-mode="lens" data-cursor-ui>Lente</button>
     </div>`);
   const buttons = [...slot.querySelectorAll('[data-mode]')];
   const show = m => {
     mode = m;
-    try { sessionStorage.setItem('about-mode', m); } catch {}
+    try { sessionStorage.setItem('about-mode2', m); } catch {}
     buttons.forEach(b => {
       b.classList.toggle('is-active', b.dataset.mode === m);
       b.setAttribute('aria-pressed', b.dataset.mode === m);
     });
     off?.();
     root.scrollTop = 0;
-    root.classList.toggle('about--orbit', m === 'orbit');
-    off = m === 'orbit' ? mountOrbit(root) : mountSheets(root);
+    root.classList.toggle('about--orbit', m !== 'sheets');
+    off = m === 'orbit' ? mountOrbit(root) : m === 'lens' ? mountLens(root) : mountSheets(root);
   };
   buttons.forEach(b => b.addEventListener('click', () => { if (b.dataset.mode !== mode) show(b.dataset.mode); }));
   show(mode);

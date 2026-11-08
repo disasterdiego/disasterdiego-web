@@ -8,7 +8,7 @@ const FS = `precision highp float;
 varying vec2 vUv;
 uniform sampler2D uTop, uUnder, uMask, uInk;
 uniform vec2 uFitTop, uFitUnder, uMouse, uPx;
-uniform float uSim, uT, uAspect;
+uniform float uSim, uT, uAspect, uHead, uHeadA;
 float lum(vec3 c){ return dot(c,vec3(.3,.59,.11)); }
 vec2 fit(vec2 uv, vec2 f){ return (uv-.5)*f+.5; }
 vec3 under(vec2 uv, float bias){
@@ -23,12 +23,17 @@ vec3 under(vec2 uv, float bias){
   }
   return c;
 }
+// La cabeza de la lente se calcula aquí, sin píxeles; el rastro viene de la máscara
+float M(vec2 uv){
+  float d = length((uv-uMouse)*vec2(uAspect,1.));
+  float head = smoothstep(uHead, uHead*.5, d)*uHeadA;
+  return max(texture2D(uMask, uv).r, head);
+}
 void main(){
   vec2 uv = vec2(vUv.x, 1.-vUv.y);
-  float m = texture2D(uMask, uv).r;
-  vec2 e = uPx*3.;
-  vec2 g = vec2(texture2D(uMask,uv+vec2(e.x,0.)).r-texture2D(uMask,uv-vec2(e.x,0.)).r,
-                texture2D(uMask,uv+vec2(0.,e.y)).r-texture2D(uMask,uv-vec2(0.,e.y)).r);
+  float m = M(uv);
+  vec2 e = uPx*2.;
+  vec2 g = vec2(M(uv+vec2(e.x,0.))-M(uv-vec2(e.x,0.)), M(uv+vec2(0.,e.y))-M(uv-vec2(0.,e.y)));
   float rim = clamp(1.-abs(m*2.2-1.1),0.,1.);
   // Ojo de pez: dentro del trazo la imagen se amplía; en el filo se curva y se desenfoca
   vec2 lensUv = uv - (uv-uMouse)*m*.08 - g*.04*rim;
@@ -61,10 +66,11 @@ const PEEK = {
     return `<div class="peek__reel${i % 2 ? ' is-rev' : ''}"><b>${pad(i + 1)} ${esc(d.title)}</b><div><div>${s}${s}</div></div></div>`;
   }).join('')}`,
   content: () => {
-    const list = CONTENT.map(c => `<span><img src="${poster(c.src, 240)}" alt="" loading="lazy"><small>${esc(c.title)}</small></span>`).join('');
-    return `<p class="peek__k">Reels: scroll hacia abajo</p><div class="peek__phone"><div class="peek__feed">${list}${list}</div><i class="peek__rail">♥<br>✎</i></div>`;
+    // Pared de reels: tres columnas que suben a distinto ritmo
+    const col = (k) => { const l = CONTENT.filter((_, i) => i % 3 === k).map(c => `<span><img src="${poster(c.src, 200)}" alt="" loading="lazy"><small>${esc(c.title)}</small></span>`).join(''); return `<div style="--d:${14 + k * 5}s"${k === 1 ? ' class="is-rev"' : ''}><div>${l}${l}</div></div>`; };
+    return `<p class="peek__k">Reels, uno a uno, con likes y comentarios</p><div class="peek__wall">${col(0)}${col(1)}${col(2)}</div>`;
   },
-  about: () => `<p class="peek__k">Bio, marcas, recorrido</p><p class="peek__bio">${esc(ABOUT.bio)}</p><ul class="peek__brands">${ABOUT.brands.map((b, i) => `<li style="--i:${i}">${esc(b)}</li>`).join('')}</ul>`,
+  about: () => `<p class="peek__k">Quién está detrás de la lente</p><div class="peek__me"><span class="peek__eye"><img src="assets/id/mask.webp" alt=""></span><div><p class="peek__quote display">La única constante es el fallo.</p><p class="peek__now">Ahora — ${esc(ABOUT.now.where)}</p><p class="peek__now">${ABOUT.brands.length} marcas · ${esc(ABOUT.brands.slice(0, 4).join(', '))}…</p></div></div>`,
 };
 
 export function mountHome(root) {
@@ -148,8 +154,8 @@ export function mountHome(root) {
     const r = Math.min(devicePixelRatio || 1, 1.5);
     canvas.width = W * r; canvas.height = H * r;
     gl.viewport(0, 0, canvas.width, canvas.height);
-    k = 360 / W;
-    mask.width = 360; mask.height = Math.max(2, Math.round(H * k));
+    k = 640 / W;
+    mask.width = 640; mask.height = Math.max(2, Math.round(H * k));
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, mask.width, mask.height);
     gl.uniform2f(U.uPx, 1 / mask.width, 1 / mask.height);
     gl.uniform1f(U.uAspect, W / H);
@@ -169,13 +175,14 @@ export function mountHome(root) {
     ctx.beginPath(); ctx.arc(X, Y, R, 0, 7); ctx.fill();
   };
   const brush = () => Math.min(W, H) * (isNarrow() ? .085 : .07);
+  let headA = 0;
   let px = null, py = null, mx = W / 2, my = H * .42, touched = 0, idle = 0, rx = 0, ry = 0;
   const trail = (x, y, power) => {
     if (px === null) { px = x; py = y; }
     const dist = Math.hypot(x - px, y - py);
-    const steps = Math.min(Math.ceil(dist / 5), 40);
-    // Más rápido = trazo más fino, como un pincel
-    const r = brush() * (1.1 - Math.min(dist / 140, .45));
+    const steps = Math.min(Math.ceil(dist / 2.5), 160);
+    // Rastro fino detrás de la cabeza; más rápido = más fino
+    const r = brush() * (.5 - Math.min(dist / 400, .2));
     for (let i = 1; i <= steps; i++) stamp(lerp(px, x, i / steps), lerp(py, y, i / steps), r, power);
     px = x; py = y;
   };
@@ -187,7 +194,7 @@ export function mountHome(root) {
 
   const stop = ticker.add((dt, t) => {
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = `rgba(0,0,0,${Math.min(1, dt * 1.6)})`;
+    ctx.fillStyle = `rgba(0,0,0,${Math.min(1, dt * 4.5)})`;
     ctx.fillRect(0, 0, mask.width, mask.height);
     ctx.globalCompositeOperation = 'lighter';
     touched = Math.max(0, touched - dt);
@@ -210,6 +217,9 @@ export function mountHome(root) {
     }
     if (!tex.top || !tex.under) return;
     gl.uniform2f(U.uMouse, mx / W, my / H);
+    headA = damp(headA, 1, 4, dt);
+    gl.uniform1f(U.uHead, (brush() * 1.6) / H);
+    gl.uniform1f(U.uHeadA, headA);
     gl.uniform1f(U.uT, t);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 

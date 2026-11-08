@@ -152,6 +152,7 @@ function swap(route) {
   view.className = `view view--${route.name}`;
   view.scrollTop = 0;
   document.body.dataset.route = route.name;
+  hudL.textContent = lensFor(route);
   document.title = route.title ? `${route.title} — disasterdiego` : 'disasterdiego — art direction, design, content';
   const active = route.name === 'project' ? 'advertising' : route.name;
   document.querySelectorAll('[data-world]').forEach(n => n.classList.toggle('is-active', n.dataset.world === active));
@@ -161,6 +162,59 @@ function swap(route) {
 
 const wait = ms => new Promise(r => setTimeout(r, reduced ? 20 : ms));
 
+// Entrada con aberración: rojo y azul llegan separados y se juntan en foco
+const caR = document.getElementById('ca-r'), caB = document.getElementById('ca-b');
+let caStop = null;
+function aberrate(px) {
+  if (reduced || !caR) return;
+  caStop?.();
+  const t0 = performance.now(), dur = 700;
+  view.style.filter = 'url(#ca)';
+  caStop = ticker.add(() => {
+    const p = Math.min(1, (performance.now() - t0) / dur), k = (1 - p) ** 3;
+    caR.setAttribute('dx', (px * k).toFixed(2)); caR.setAttribute('dy', (px * .25 * k).toFixed(2));
+    caB.setAttribute('dx', (-px * k).toFixed(2)); caB.setAttribute('dy', (-px * .25 * k).toFixed(2));
+    if (p >= 1) { view.style.filter = ''; caStop(); caStop = null; }
+  });
+}
+
+// Hora y lente: cada sección y cada proyecto tiene su propia óptica
+const hudT = $('hud-t'), hudL = $('hud-l');
+const LENSES = { home: '50MM · F/1.4', advertising: '35MM · F/2.0', design: '100MM MACRO · F/4', content: '24MM · F/2.8 · 9:16', about: '85MM · F/1.2' };
+const lensFor = route => {
+  if (route.name !== 'project') return LENSES[route.name];
+  let h = 0;
+  for (const c of route.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return `${[24, 28, 35, 50, 85, 105][h % 6]}MM · F/${['1.4', '2.0', '2.8', '4'][(h >> 3) % 4]}`;
+};
+const clock = () => { hudT.textContent = `MAD ${new Date().toLocaleTimeString('es-ES', { hour12: false, timeZone: 'Europe/Madrid' })}`; };
+clock();
+setInterval(clock, 1000);
+
+// Modo negativo: un círculo de lente se abre desde el cursor e invierte toda la web
+const neg = $('neg');
+let negOn = false, lastX = innerWidth / 2, lastY = innerHeight / 2;
+addEventListener('pointerdown', e => { lastX = e.clientX; lastY = e.clientY; }, { passive: true });
+addEventListener('pointermove', e => { lastX = e.clientX; lastY = e.clientY; }, { passive: true });
+export function toggleNegative(x = lastX, y = lastY) {
+  negOn = !negOn;
+  neg.style.setProperty('--x', `${x}px`);
+  neg.style.setProperty('--y', `${y}px`);
+  document.documentElement.classList.toggle('is-negative', negOn);
+  sound.copier();
+}
+addEventListener('keydown', e => {
+  if (e.target.closest?.('input,textarea') || e.metaKey || e.ctrlKey) return;
+  if (e.key === 'n' || e.key === 'N') toggleNegative();
+});
+const negBtn = document.createElement('button');
+negBtn.type = 'button';
+negBtn.className = 'panel__type panel__neg';
+negBtn.setAttribute('data-cursor-ui', '');
+negBtn.innerHTML = '<span>Modo negativo · tecla N</span><b>On / Off</b>';
+panel.append(negBtn);
+negBtn.addEventListener('click', e => { e.stopPropagation(); toggleNegative(innerWidth / 2, innerHeight / 2); });
+
 // Transición directa: la página se va por el borde de la lente (desenfoque y color
 // separado) y la nueva entra enfocando. Sin pantallas intermedias.
 const lens = $('lens');
@@ -169,7 +223,7 @@ async function navigate() {
   if (route.key === currentKey) return;
   if (busy) { queued = true; return; }
   busy = true;
-  sound.swish();
+  sound.shutter();
   view.classList.add('is-leaving');
   lens.classList.remove('is-on');
   void lens.offsetWidth;
@@ -179,6 +233,7 @@ async function navigate() {
   view.classList.remove('is-leaving');
   view.classList.add('is-entering');
   setTimeout(() => view.classList.remove('is-entering'), 650);
+  aberrate(route.name === 'project' ? 26 : 16);
   view.focus({ preventScroll: true });
   busy = false;
   if (queued) { queued = false; navigate(); }
