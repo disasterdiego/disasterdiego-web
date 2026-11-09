@@ -1,5 +1,5 @@
 import { SOCIALS, WORLDS, PROJECTS, DESIGN, CONTENT, findProject } from './data.js';
-import { ticker, lerp, damp, finePointer, reduced, esc } from './lib.js';
+import { ticker, lerp, damp, finePointer, reduced, esc, opt } from './lib.js';
 import { initFx, fxHide } from './fx.js';
 import { initScan } from './scan.js';
 import { sound } from './sound.js';
@@ -35,6 +35,26 @@ $('nav-links').innerHTML = WORLDS.map((w, i) => `
   <a class="nav__link" href="#/${w.id}" data-world="${w.id}" style="--i:${i}" data-cursor-ui>
     <span class="nav__n">0${i + 1}</span><span class="nav__t">${esc(w.label)}</span>${COUNTS[w.id] ? `<sup>${String(COUNTS[w.id]).padStart(2, '0')}</sup>` : ''}
   </a>`).join('');
+
+// Móvil: el menú se despliega abajo, cerca del dedo, y las secciones de arriba se van
+const THUMB = { advertising: PROJECTS.advertising[0].cover, design: DESIGN[0].slides[0], content: PROJECTS.advertising[2].cover, about: 'assets/home/top.webp' };
+const navPanel = $('nav-panel'), menuBtn = $('menu-toggle');
+navPanel.innerHTML = WORLDS.map((w, i) => `
+  <a class="nav__row" href="#/${w.id}" data-world="${w.id}" style="--i:${i}">
+    <span class="nav__n">0${i + 1}</span><span class="nav__thumb"><img src="${THUMB[w.id].startsWith('http') ? opt(THUMB[w.id], 160) : THUMB[w.id]}" alt="" loading="lazy"></span>
+    <span class="nav__big">${esc(w.label)}</span><span class="nav__n">${COUNTS[w.id] ? String(COUNTS[w.id]).padStart(2, '0') : ''}</span>
+  </a>`).join('');
+const setMenu = open => {
+  document.body.classList.toggle('menu-open', open);
+  menuBtn.setAttribute('aria-expanded', open);
+  navPanel.inert = !open;
+  $('menu-label').textContent = open ? 'Close' : 'Menu';
+};
+menuBtn.addEventListener('click', () => setMenu(!document.body.classList.contains('menu-open')));
+navPanel.addEventListener('click', e => { if (e.target.closest('a')) setMenu(false); });
+document.addEventListener('pointerdown', e => { if (document.body.classList.contains('menu-open') && !e.target.closest('#bar')) setMenu(false); });
+addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+addEventListener('hashchange', () => setMenu(false));
 
 // Tipografía única: Syne Mono para todo (títulos, textos y pies)
 {

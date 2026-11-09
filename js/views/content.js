@@ -1,4 +1,6 @@
-// CONTENT: reels. Un vídeo a la vez, se pasa hacia abajo como en Instagram o TikTok.
+// CONTENT: reels vistos a través de un visor de cámara. Un vídeo a la vez, se pasa hacia
+// abajo; el anterior y el siguiente asoman desenfocados y con el color separado.
+// A la derecha, un anillo de enfoque vertical con todos los clips (como el Recorrido del About).
 // Al lado, la barra social: me gusta y comentarios.
 // OJO: likes y comentarios se guardan solo en el navegador de quien los deja.
 // Para que los vea todo el mundo hace falta un servicio externo (ver README de la propuesta).
@@ -10,6 +12,8 @@ import { ticker, damp, wrap, mod, clamp, opt, esc, isNarrow, bindDrag, reduced }
 const isVideo = u => u.endsWith('.mp4') || u.includes('/video/upload/');
 const ratioOf = r => { const [a, b] = r.split('/').map(Number); return a / b; };
 const pad = n => String(n).padStart(2, '0');
+const LENS = ['24MM · F/2.8', '35MM · F/2', '50MM · F/1.4', '85MM · F/1.8'];
+const tc = t => { const f = Math.floor((t % 1) * 24); const x = Math.floor(t); return `${pad(Math.floor(x / 60))}:${pad(x % 60)}:${pad(f)}`; };
 const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5 4.6 13.4A4.6 4.6 0 0 1 12 6.9a4.6 4.6 0 0 1 7.4 6.5z"/></svg>';
 const BUBBLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>';
 const SOUND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/></svg>';
@@ -28,6 +32,8 @@ export function mountContent(root) {
         ${CONTENT.map((c, i) => `<figure class="vclip reel" style="--ar:${ratioOf(c.ratio)}">${isVideo(c.src)
           ? `<video data-src="${c.src}" crossorigin="anonymous" muted loop playsinline preload="none"></video>`
           : `<img src="${opt(c.src, 1000)}" alt="" loading="lazy" draggable="false">`}
+          <div class="vf" aria-hidden="true"><i class="vf__k vf__k--tl"></i><i class="vf__k vf__k--tr"></i><i class="vf__k vf__k--bl"></i><i class="vf__k vf__k--br"></i>
+            <span class="vf__rec"><i></i>REC <b class="vf__tc">00:00:00</b></span><span class="vf__lens">${LENS[i % LENS.length]} · ${c.ratio.replace('/', ':')}</span><i class="vf__x"></i></div>
           <figcaption><b>${pad(i + 1)}</b> ${esc(c.title)}</figcaption><i class="reel__bar"></i></figure>`).join('')}
       </div>
       <div class="rail" id="rail">
@@ -37,11 +43,11 @@ export function mountContent(root) {
         <span class="rail__n" id="r-n"></span>
       </div>
     </div>
-    <aside class="meta" id="meta" aria-live="polite">
-      <span class="meta__n" id="m-n"></span>
-      <h2 class="meta__t display" id="m-t"></h2>
-      <dl class="meta__dl"><div><dt>Format</dt><dd id="m-f"></dd></div><div><dt>Type</dt><dd id="m-k"></dd></div></dl>
-      <p class="meta__hint">Scroll ↓ para el siguiente</p>
+    <aside class="cdial" id="cdial" aria-hidden="true" data-cursor-ui>
+      <div class="cdial__scale"></div>
+      ${CONTENT.map((c, i) => `<div class="cdial__i"><span>${pad(i + 1)}</span><b>${esc(c.title)}</b><em>${c.ratio.replace('/', ':')} · ${ratioOf(c.ratio) < 1 ? 'Vertical' : 'Horizontal'}</em></div>`).join('')}
+      <i class="cdial__mark"></i>
+      <p class="cdial__hint">Scroll ↕</p>
     </aside>
     <section class="comments" id="comments" aria-label="Comentarios" inert>
       <header><b>Comentarios</b><button type="button" id="c-x" data-cursor-ui>Cerrar</button></header>
@@ -49,7 +55,9 @@ export function mountContent(root) {
       <form id="c-form"><input name="name" maxlength="30" placeholder="Nombre (opcional)" autocomplete="off"><textarea name="text" maxlength="280" rows="2" placeholder="Escribe un comentario" required></textarea><button type="submit" data-cursor-ui>Publicar</button></form>
     </section>`;
 
-  const clips = [...root.querySelectorAll('.reel')].map((el, i) => ({ el, i, v: el.querySelector('video'), bar: el.querySelector('.reel__bar') }));
+  const clips = [...root.querySelectorAll('.reel')].map((el, i) => ({ el, i, v: el.querySelector('video'), bar: el.querySelector('.reel__bar'), tc: el.querySelector('.vf__tc') }));
+  const dialItems = [...root.querySelectorAll('.cdial__i')], scale = root.querySelector('.cdial__scale');
+  root.querySelector('#cdial').addEventListener('click', e => { const it = e.target.closest('.cdial__i'); if (it) go(dialItems.indexOf(it)); });
   const stage = root.querySelector('#stage');
   const $ = id => root.querySelector(id);
   const comments = $('#comments');
@@ -63,7 +71,7 @@ export function mountContent(root) {
     const b = stage.getBoundingClientRect();
     clips.forEach((c, i) => {
       const r = ratioOf(CONTENT[i].ratio);
-      const w = Math.min(b.width, b.height * r);
+      const w = Math.min(b.width * .92, b.height * .74 * r);
       c.el.style.width = `${w}px`;
       c.el.style.height = `${w / r}px`;
     });
@@ -86,11 +94,7 @@ export function mountContent(root) {
   const setCurrent = i => {
     cur = i;
     const c = CONTENT[i];
-    $('#m-n').textContent = `${pad(i + 1)} / ${pad(n)}`;
     $('#r-n').textContent = `${pad(i + 1)}/${pad(n)}`;
-    $('#m-t').textContent = c.title;
-    $('#m-f').textContent = c.ratio.replace('/', ':');
-    $('#m-k').textContent = ratioOf(c.ratio) < 1 ? 'Vertical' : 'Horizontal';
     index.setActive(i);
     $('#r-snd').style.visibility = clips[i].v ? '' : 'hidden';
     renderSocial();
@@ -171,20 +175,30 @@ export function mountContent(root) {
     if (a !== cur) setCurrent(a);
 
     // El siguiente sube desde abajo; el que se va se aleja y pierde foco por el borde
+    dialItems.forEach((el, i) => {
+      const d = wrap(i - p, n), ad = Math.abs(d);
+      el.style.transform = `translateY(calc(-50% + ${(d * 64).toFixed(1)}px))`;
+      el.style.setProperty('--d', Math.min(ad, 3).toFixed(3));
+    });
+    scale.style.transform = `translateY(${(-p * 64) % 16}px)`;
     for (const c of clips) {
-      const d = wrap(c.i - p, n), ad = Math.abs(d), show = ad < 1.2;
+      const d = wrap(c.i - p, n), ad = Math.abs(d), show = ad < 1.6;
       c.el.style.visibility = show ? '' : 'hidden';
       c.el.style.pointerEvents = ad < .5 ? 'auto' : 'none';
       if (!show) continue;
       const k = reduced ? 0 : 1;
-      c.el.style.transform = `translate(-50%,-50%) translate3d(0,${d * 104}%,0) scale(${1 - ad * .1 * k})`;
-      c.el.style.opacity = clamp(1.15 - ad, 0, 1);
-      const blur = Math.round(ad * 16 * k);
+      // Los vecinos asoman arriba y abajo, más pequeños, desenfocados y con el color separado
+      c.el.style.transform = `translate(-50%,-50%) translate3d(0,${d * 96}%,0) scale(${1 - Math.min(ad, 1) * .3 * k})`;
+      c.el.style.opacity = clamp(1.35 - ad * .75, 0, 1);
+      const blur = Math.round(Math.min(ad, 1) * 7 * k);
       if (blur !== c.blur) { c.blur = blur; c.el.style.filter = blur ? `blur(${blur}px)` : 'none'; }
+      const o = (Math.min(ad, 1) * 14 * k).toFixed(1);
+      c.el.style.boxShadow = ad > .02 ? `-${o}px 0 0 rgb(0 110 255 / .5), ${o}px 0 0 rgb(255 40 40 / .5), 0 ${(o * .5).toFixed(1)}px 0 rgb(0 190 90 / .4)` : 'none';
+      c.el.style.zIndex = ad < .5 ? 2 : 1;
     }
     const v = clips[cur]?.v;
     const prog = v && v.duration ? v.currentTime / v.duration : 0;
-    if (clips[cur]) clips[cur].bar.style.transform = `scaleX(${prog})`;
+    if (clips[cur]) { clips[cur].bar.style.transform = `scaleX(${prog})`; clips[cur].tc.textContent = tc(v ? v.currentTime : (performance.now() / 1000) % 60); }
   });
 
   return () => {

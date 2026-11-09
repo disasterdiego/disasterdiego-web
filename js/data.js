@@ -254,9 +254,9 @@ export const ABOUT = {
   short: 'Director de arte. Publicidad, diseño y contenido para marcas que no se conforman con lo correcto.',
   now: { what: '[Puesto actual]', where: '[Dónde trabajas ahora]' },
   career: [
-    { when: '[Año — año]', what: '[Puesto]', where: '[Empresa]' },
-    { when: '[Año — año]', what: '[Puesto]', where: '[Empresa]' },
-    { when: '[Año — año]', what: '[Puesto]', where: '[Empresa]' },
+    { when: '[Año — año]', what: '[Puesto]', where: '[Empresa]', desc: '[Una línea sobre lo que hiciste allí: marcas, proyectos, lo que aprendiste]' },
+    { when: '[Año — año]', what: '[Puesto]', where: '[Empresa]', desc: '[Una línea sobre lo que hiciste allí: marcas, proyectos, lo que aprendiste]' },
+    { when: '[Año — año]', what: '[Puesto]', where: '[Empresa]', desc: '[Una línea sobre lo que hiciste allí: marcas, proyectos, lo que aprendiste]' },
   ],
   awards: [
     { when: '[Año]', what: '[Premio]', where: '[Organización]' },

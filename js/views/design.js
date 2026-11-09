@@ -24,7 +24,7 @@ export function mountDesign(root) {
           // Tres copias del carrete: así gira sin fin hacia los dos lados
           const set = d.slides.map(src => `<figure class="vslide">${isVideo(src)
             ? `<video data-src="${src}" crossorigin="anonymous" muted loop playsinline preload="none"></video>`
-            : `<img src="${opt(src, 620)}" alt="" loading="lazy" draggable="false">`}</figure>`).join('');
+            : `<img src="${opt(src, 620)}" alt="" loading="lazy" draggable="false"><i class="ca3" aria-hidden="true" style="--bg:url('${opt(src, 620)}')"><b></b><b></b><b></b></i>`}</figure>`).join('');
           return `<div class="drow" data-i="${i}"><div class="drow__in">${set}${set}${set}</div></div>`;
         }).join('')}
       </div>
@@ -51,13 +51,6 @@ export function mountDesign(root) {
   info.className = 'dinfo';
   info.innerHTML = `<span id="d-n"></span><span id="d-c"></span><p class="dinfo__desc" id="d-d"></p><span class="dinfo__bar"><i id="d-b"></i></span><span class="dinfo__hint">${isNarrow() ? 'Desliza' : 'Scroll ↕ proyecto · ↔ fotos'}</span>`;
   root.querySelector('.side').append(info);
-  // Fuera de Chrome los filtros SVG no se ven en 3D: se usa desenfoque y sombras de color
-  const svgOk = !!window.chrome;
-  const CSSCA = {
-    near: 'blur(1.6px) drop-shadow(-6px 0 0 rgb(0 110 255 / .55)) drop-shadow(6px 0 0 rgb(255 40 40 / .55)) drop-shadow(0 3px 0 rgb(0 190 90 / .35))',
-    far: 'blur(3.4px) drop-shadow(-14px 0 0 rgb(0 110 255 / .5)) drop-shadow(14px 0 0 rgb(255 40 40 / .5)) drop-shadow(0 5px 0 rgb(0 190 90 / .3))',
-  };
-
   const fit = () => {
     const b = wheel.getBoundingClientRect();
     const narrow = isNarrow();
@@ -139,7 +132,8 @@ export function mountDesign(root) {
       r.el.style.opacity = clamp(1.2 - ad * .22, 0, 1);
       // Fuera de la ranura, aberración cromática que crece con la distancia
       const lvl = ad < .5 ? '' : ad < 1.5 ? 'near' : 'far';
-      if (lvl !== r.lvl) { r.lvl = lvl; r.el.style.filter = !lvl ? 'none' : svgOk ? `url(#ca-${lvl})` : CSSCA[lvl]; }
+      // Separación de color con tres capas (rojo, verde, azul): se ve igual en Safari y en Chrome
+      if (lvl !== r.lvl) { r.lvl = lvl; r.el.classList.toggle('ca-near', lvl === 'near'); r.el.classList.toggle('ca-far', lvl === 'far'); }
       // Cada carrete avanza solo, despacio; tus gestos lo empujan
       if (!reduced) r.tpan += r.speed * dt * (r.i === cur && userT > 0 ? 0 : 1);
       r.pan = damp(r.pan, r.tpan, 7, dt);

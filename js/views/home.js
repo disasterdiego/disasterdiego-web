@@ -21,6 +21,10 @@ vec3 tx(sampler2D t, vec2 p, float bias){
     vec3 bg = texture2D(t, vec2(clamp(p.x,.02,.98), .02), 6.).rgb;
     c = mix(bg, c, smoothstep(-.005, .06, p.y));
   }
+  if(p.y > .94){
+    vec3 bg = texture2D(t, vec2(clamp(p.x,.02,.98), .98), 6.).rgb;
+    c = mix(bg, c, smoothstep(1.005, .94, p.y));
+  }
   return c;
 }
 vec3 under(vec2 uv, float bias){
@@ -55,8 +59,8 @@ void main(){
   vec2 e = uPx*2.;
   vec2 g = vec2(M(uv+vec2(e.x,0.))-M(uv-vec2(e.x,0.)), M(uv+vec2(0.,e.y))-M(uv-vec2(0.,e.y)));
   float rim = clamp(1.-abs(m*2.2-1.1),0.,1.);
-  vec2 lensUv = uv - (uv-uMouse)*m*.08 - g*.04*rim;
-  vec2 d = (g*.045*rim + (uv-uMouse)*m*.006)*uCA;
+  vec2 lensUv = uv; // la foto de abajo no se mueve: solo el filo separa color
+  vec2 d = g*.045*rim*uCA;
   float bias = rim*.5;
   float reveal = smoothstep(.4,.62,m);
   vec2 tu = fit(uv - g*.02*rim, uFitTop);
@@ -99,14 +103,14 @@ export function mountHome(root) {
     <div class="hz" id="hz">
       <div class="hz__tilt" id="tilt"><canvas class="hz__gl" id="gl"></canvas><img class="hz__flat" src="${HOME_IMAGE}" alt="Retrato de Diego" hidden></div>
     </div>
-    <h1 class="home__word" aria-label="disasterdiego"><span>disaster</span><span>diego</span></h1>
-    <p class="home__role">Art direction — Advertising · Design · Content</p>
+    <h1 class="sr">disasterdiego</h1>
+    <nav class="home__side" aria-label="Secciones">${WORLDS.map((w, i) => `<a href="#/${w.id}" data-world="${w.id}" data-cursor-ui><i>${pad(i + 1)}</i><span>${w.label}</span><small>${COUNT[w.id] ? pad(COUNT[w.id]) : ''}</small></a>`).join('')}</nav>
     <aside class="peek" id="peek" aria-hidden="true"></aside>`;
 
   const $ = s => root.querySelector(s);
   const tilt = $('#tilt'), peek = $('#peek'), canvas = $('#gl');
   // El adelanto cuelga del menú de arriba
-  const links = [...document.querySelectorAll('#nav-links [data-world]')];
+  const links = [...document.querySelectorAll('#nav-links [data-world]'), ...root.querySelectorAll('.home__side [data-world]')];
 
   // Adelanto a la derecha: se queda abierto al pasar del pilar al panel
   let shown = null, closeT = 0;
@@ -165,14 +169,14 @@ export function mountHome(root) {
   const mtex = texture(gl, null);
 
   let W = 1, H = 1, k = 1, faceY = .42;
-  // Desktop: la foto cubre la pantalla. Móvil: se aleja (ocupa ~58% del alto) y se
-  // apoya abajo; arriba sigue el mismo fondo de papel y queda aire para el nombre
+  // Desktop: la foto cubre la pantalla. Móvil: término medio (76% del alto), centrada;
+  // arriba y abajo sigue el mismo fondo, liso
   const frame = ([w, h]) => {
     const ir = w / h;
     let dw, dh;
-    if (isNarrow()) { dh = H * .58; dw = dh * ir; if (dw < W) { dw = W; dh = W / ir; } }
+    if (isNarrow()) { dh = H * .76; dw = dh * ir; if (dw < W) { dw = W; dh = W / ir; } }
     else if (ir > W / H) { dh = H; dw = H * ir; } else { dw = W; dh = W / ir; }
-    const ox = (W - dw) / 2, oy = isNarrow() ? H - dh : (H - dh) / 2;
+    const ox = (W - dw) / 2, oy = (H - dh) / 2;
     return { f: [W / dw, H / dh, -ox / dw, -oy / dh], oy, dh };
   };
   const fitAll = () => {

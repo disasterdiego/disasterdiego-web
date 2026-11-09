@@ -7,7 +7,9 @@
 import { ABOUT, PROJECTS, SOCIALS } from '../data.js';
 import { esc, ticker, damp, clamp, isNarrow, reduced, finePointer, getGL, program, fullscreenQuad, VS_FULL, texture, loadImage } from '../lib.js';
 
-const IMG = 'assets/id/inverted.webp';
+// Tu cara limpia (la foto de arriba de la home), recortada a la cara
+const IMG = 'assets/home/top.webp';
+const ZOOM = 2.2, FACE = [.5, .42];
 const pad = n => String(n).padStart(2, '0');
 const SECTIONS = [
   { id: 'enfoque', name: 'Enfoque', dist: '∞' },
@@ -20,7 +22,8 @@ const SECTIONS = [
 const FS = `precision highp float;
 varying vec2 vUv;
 uniform sampler2D uTex;
-uniform vec2 uMouse, uFit;
+uniform vec2 uMouse, uFit, uFace;
+uniform float uZoom;
 uniform float uAspect, uR, uAmt;
 float M(vec2 uv){ return smoothstep(uR, uR*.86, length((uv-uMouse)*vec2(uAspect,1.))); }
 void main(){
@@ -31,7 +34,7 @@ void main(){
   float rim = clamp(1.-abs(m*2.2-1.1),0.,1.);
   vec2 q = uv - (uv-uMouse)*m*.18*uAmt - g*.05*rim*uAmt;
   vec2 d = g*.06*rim*uAmt + (uv-uMouse)*m*.012*uAmt;
-  vec2 f = (q-.5)*uFit+.5, fd = d*uFit;
+  vec2 f = (q-.5)*uFit/uZoom+uFace, fd = d*uFit/uZoom;
   vec3 c = vec3(texture2D(uTex,f+fd).r, texture2D(uTex,f+fd*.45).g, texture2D(uTex,f-fd*.7).b);
   c += rim*.05*uAmt + m*.025*uAmt;
   gl_FragColor = vec4(c,1.);
@@ -47,7 +50,7 @@ const workFor = b => {
 const head = (i, extra = '') => `<header class="ap__head"><span class="ap__n">${pad(i + 1)}</span><h2>${SECTIONS[i].name}</h2><span class="ap__d">◎ ${SECTIONS[i].dist}</span>${extra}</header>`;
 
 export function mountAbout(root) {
-  const words = ABOUT.bio.split(/\s+/).map((w, i) => `<span class="ap__w" style="--k:${i}">${esc(w)}</span>`).join(' ');
+  const words = ABOUT.bio.split(/\s+/).map(w => `<span class="ap__w">${[...w].map(ch => `<span class="ap__l">${esc(ch)}</span>`).join('')}</span>`).join(' ');
   const brands = ABOUT.brands.map((b, i) => {
     const work = workFor(b);
     const face = ABOUT.logos?.[b] ? `<img src="${ABOUT.logos[b]}" alt="" draggable="false">` : `<b>${esc(b)}</b>`;
@@ -59,7 +62,7 @@ export function mountAbout(root) {
           : '<em>Próximamente</em>'}</span>
       </button></li>`;
   }).join('');
-  const career = ABOUT.career.map((r, i) => `<li class="ap__stop" data-i="${i}"><span>${esc(r.when)}</span><b>${esc(r.what)}</b><em>${esc(r.where)}</em></li>`).join('');
+  const career = ABOUT.career.map((r, i) => `<li class="ap__stop" data-i="${i}"><span>${esc(r.when)}</span><b>${esc(r.what)}</b><em>${esc(r.where)}</em>${r.desc ? `<p>${esc(r.desc)}</p>` : ''}</li>`).join('');
   const awards = ABOUT.awards.map((r, i) => `<li><span class="ap__an">${pad(i + 1)}</span><b>${esc(r.what)}</b><span>${esc(r.where)}</span><span>${esc(r.when)}</span></li>`).join('');
   const mail = SOCIALS.find(s => s.key === 'mail');
   const nets = SOCIALS.filter(s => s.key !== 'mail').map(s => `<a href="${s.href}" target="_blank" rel="noopener noreferrer" data-cursor-ui>${esc(s.label)} ↗</a>`).join('');
@@ -76,7 +79,7 @@ export function mountAbout(root) {
         ${head(0)}
         <div class="ap__heroin">
           <h1 class="ap__bio" id="ap-bio">${words}</h1>
-          <figure class="ap__eye" id="fig"><canvas id="agl" aria-hidden="true"></canvas><img class="ap__flat" src="${IMG}" alt="Diego" hidden><i class="ap__cross" aria-hidden="true"></i></figure>
+          <figure class="ap__eye" id="fig"><canvas id="agl" aria-hidden="true"></canvas><img class="ap__flat" src="${IMG}" alt="Diego" hidden style="object-position:50% 30%"><i class="ap__cross" aria-hidden="true"></i></figure>
         </div>
         <div class="ap__row">
           <p class="ap__now"><span>Ahora</span><b>${esc(ABOUT.now.what)}</b><em>${esc(ABOUT.now.where)}</em></p>
@@ -166,7 +169,7 @@ export function mountAbout(root) {
   on(dial, 'wheel', e => { if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { e.preventDefault(); tpos = clamp(tpos + e.deltaX / 300, 0, maxPos()); clearTimeout(dial._t); dial._t = setTimeout(() => { tpos = Math.round(tpos); }, 140); } }, { passive: false });
 
   // ---------- 01 Enfoque: lente sobre las palabras ----------
-  const bio = $('#ap-bio'), wordEls = [...bio.children];
+  const bio = $('#ap-bio'), wordEls = [...bio.querySelectorAll('.ap__l')];
   let wc = [];
   const measure = () => { wc = wordEls.map(w => { const r = w.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }); };
   let px = -1e4, py = -1e4, lx = -1e4, ly = -1e4, pointerT = 0;
@@ -188,6 +191,8 @@ export function mountAbout(root) {
     fullscreenQuad(gl, prog);
     const U = prog.u;
     gl.uniform1i(U.uTex, 0);
+    gl.uniform1f(U.uZoom, ZOOM);
+    gl.uniform2f(U.uFace, ...FACE);
     let tex = null, ir = 3 / 4;
     loadImage(IMG).then(img => { if (!root.isConnected) return; gl.activeTexture(gl.TEXTURE0); tex = texture(gl, img, { mips: true }); ir = img.naturalWidth / img.naturalHeight; glSize(); }).catch(() => {});
     glSize = () => {
@@ -223,7 +228,7 @@ export function mountAbout(root) {
       py = bb.top + bb.height * (.5 + Math.sin(t * .9 + 1) * .4);
     }
     lx = damp(lx < -1e3 ? px : lx, px, 9, dt); ly = damp(ly < -1e3 ? py : ly, py, 9, dt);
-    const R = Math.max(110, bb.width * .22);
+    const R = Math.max(90, bb.width * .16);
     wordEls.forEach((w, i) => {
       const c = wc[i];
       if (!c) return;
