@@ -8,14 +8,24 @@ import { cursorScale } from '../cursor-mode.js';
 const FS = `precision highp float;
 varying vec2 vUv;
 uniform sampler2D uTop, uUnder, uMask, uInk;
-uniform vec2 uFitTop, uFitUnder, uMouse, uPx;
-uniform float uSim, uT, uAspect, uHead, uHeadA, uNight;
+uniform vec4 uFitTop, uFitUnder;
+uniform vec2 uMouse, uPx;
+uniform float uSim, uT, uAspect, uHead, uHeadA, uNight, uCA;
 float lum(vec3 c){ return dot(c,vec3(.3,.59,.11)); }
-vec2 fit(vec2 uv, vec2 f){ return (uv-.5)*f+.5; }
+// Encuadre: escala y desplazamiento (en móvil la foto se aleja y se apoya abajo)
+vec2 fit(vec2 uv, vec4 f){ return uv*f.xy+f.zw; }
+// Fuera de la foto (arriba, en móvil) se prolonga su fondo, liso y sin rayas
+vec3 tx(sampler2D t, vec2 p, float bias){
+  vec3 c = texture2D(t, p, bias).rgb;
+  if(p.y < .06){
+    vec3 bg = texture2D(t, vec2(clamp(p.x,.02,.98), .02), 6.).rgb;
+    c = mix(bg, c, smoothstep(-.005, .06, p.y));
+  }
+  return c;
+}
 vec3 under(vec2 uv, float bias){
-  vec3 c = texture2D(uUnder, fit(uv,uFitUnder), bias).rgb;
+  vec3 c = tx(uUnder, fit(uv,uFitUnder), bias);
   if(uSim > .5){
-    // Mientras no haya foto tatuada: fotocopia de tóner y tu tribal encima
     float l = smoothstep(.12,.78,lum(c));
     c = vec3(mix(.04,.95,l));
     vec2 iu = (uv-vec2(.5,.43))*vec2(uAspect*.62,1.)*.95+.5;
@@ -24,12 +34,20 @@ vec3 under(vec2 uv, float bias){
   }
   return c;
 }
-// La cabeza de la lente se calcula aquí, sin píxeles; el rastro viene de la máscara
 float M(vec2 uv){
   float d = length((uv-uMouse)*vec2(uAspect,1.));
-  // Filo firme: la gota es sólida, como cristal líquido, también en reposo
   float head = smoothstep(uHead, uHead*.88, d)*uHeadA;
   return max(texture2D(uMask, uv).r, head);
+}
+// Una muestra completa (arriba + debajo) en un punto desplazado
+vec3 comp(vec2 lu, vec2 tu, float bias, float reveal){
+  vec3 t = tx(uTop, tu, bias*.6);
+  return mix(t, under(lu, bias), reveal);
+}
+// Negativo: blanco y negro invertido. Los blancos pasan a negro y el resto sube a blanco
+vec3 neg(vec3 c){
+  float v = 1.-smoothstep(.32,.9,lum(c));
+  return mix(vec3(.05,.05,.048), vec3(.93,.925,.9), v);
 }
 void main(){
   vec2 uv = vec2(vUv.x, 1.-vUv.y);
@@ -37,25 +55,18 @@ void main(){
   vec2 e = uPx*2.;
   vec2 g = vec2(M(uv+vec2(e.x,0.))-M(uv-vec2(e.x,0.)), M(uv+vec2(0.,e.y))-M(uv-vec2(0.,e.y)));
   float rim = clamp(1.-abs(m*2.2-1.1),0.,1.);
-  // Ojo de pez: dentro del trazo la imagen se amplía; en el filo se curva y se desenfoca
   vec2 lensUv = uv - (uv-uMouse)*m*.08 - g*.04*rim;
-  vec2 d = g*.045*rim + (uv-uMouse)*m*.006;
+  vec2 d = (g*.045*rim + (uv-uMouse)*m*.006)*uCA;
   float bias = rim*.5;
-  vec3 un = vec3(under(lensUv+d,bias).r, under(lensUv+d*.45,bias).g, under(lensUv-d*.7,bias).b);
-  vec2 tu = fit(uv - g*.02*rim, uFitTop);
-  vec2 td = g*.03*rim*uFitTop;
-  vec3 top = vec3(texture2D(uTop,tu+td,bias*.6).r, texture2D(uTop,tu+td*.45,bias*.6).g, texture2D(uTop,tu-td*.7,bias*.6).b);
-  // Noche: mapa de degradado. Los blancos del fondo pasan a negro y la piel se queda;
-  // debajo, los grafitis se invierten (trazo claro sobre negro)
-  if(uNight > .5){
-    float lt = lum(top);
-    float k = smoothstep(.6,.93,lt);
-    top = mix(top, vec3(.065,.065,.062), k);
-    un = mix(un, vec3(.94)-un*.88, 1.);
-  }
   float reveal = smoothstep(.4,.62,m);
-  vec3 col = mix(top, un, reveal);
-  // Brillo de cristal en el filo
+  vec2 tu = fit(uv - g*.02*rim, uFitTop);
+  vec2 td = g*.03*rim*uFitTop.xy*uCA;
+  vec3 cR = comp(lensUv+d, tu+td, bias, reveal);
+  vec3 cG = comp(lensUv+d*.45, tu+td*.45, bias, reveal);
+  vec3 cB = comp(lensUv-d*.7, tu-td*.7, bias, reveal);
+  vec3 col = vec3(cR.r, cG.g, cB.b);
+  // En el negativo cada canal sale de su propia muestra: el filo sigue separando color
+  if(uNight > .5) col = vec3(neg(cR).r, neg(cG).g, neg(cB).b);
   col += rim*.03;
   gl_FragColor = vec4(col,1.);
 }`;
@@ -88,14 +99,14 @@ export function mountHome(root) {
     <div class="hz" id="hz">
       <div class="hz__tilt" id="tilt"><canvas class="hz__gl" id="gl"></canvas><img class="hz__flat" src="${HOME_IMAGE}" alt="Retrato de Diego" hidden></div>
     </div>
-    <h1 class="sr">disasterdiego</h1>
-    <nav class="home__pillars" id="pillars" aria-label="Secciones">${WORLDS.map((w, i) => `
-      <a href="#/${w.id}" data-id="${w.id}" style="--i:${i}" data-cursor-ui><i>${pad(i + 1)}</i><span>${w.label}</span><small>${COUNT[w.id] ?? ''}</small></a>`).join('')}
-    </nav>
+    <h1 class="home__word" aria-label="disasterdiego"><span>disaster</span><span>diego</span></h1>
+    <p class="home__role">Art direction — Advertising · Design · Content</p>
     <aside class="peek" id="peek" aria-hidden="true"></aside>`;
 
   const $ = s => root.querySelector(s);
-  const tilt = $('#tilt'), peek = $('#peek'), pillars = $('#pillars'), canvas = $('#gl');
+  const tilt = $('#tilt'), peek = $('#peek'), canvas = $('#gl');
+  // El adelanto cuelga del menú de arriba
+  const links = [...document.querySelectorAll('#nav-links [data-world]')];
 
   // Adelanto a la derecha: se queda abierto al pasar del pilar al panel
   let shown = null, closeT = 0;
@@ -108,22 +119,23 @@ export function mountHome(root) {
       void peek.offsetWidth;
     }
     peek.classList.add('is-in');
-    pillars.querySelectorAll('a').forEach(a => a.classList.toggle('is-active', a.dataset.id === id));
+    links.forEach(a => a.classList.toggle('is-peek', a.dataset.world === id));
   };
   const close = () => {
     closeT = setTimeout(() => {
       peek.classList.remove('is-in');
-      pillars.querySelectorAll('a').forEach(a => a.classList.remove('is-active'));
+      links.forEach(a => a.classList.remove('is-peek'));
       shown = null;
     }, 260);
   };
-  pillars.addEventListener('pointerover', e => { const a = e.target.closest('a'); if (a && e.pointerType === 'mouse') open(a.dataset.id); });
-  pillars.addEventListener('pointerleave', close);
+  const onOver = e => { if (e.pointerType === 'mouse' && !isNarrow()) open(e.currentTarget.dataset.world); };
+  links.forEach(a => { a.addEventListener('pointerenter', onOver); a.addEventListener('pointerleave', close); });
   peek.addEventListener('pointerenter', () => clearTimeout(closeT));
   peek.addEventListener('pointerleave', close);
 
   const gl = getGL(canvas);
-  if (!gl) { canvas.remove(); root.querySelector('.hz__flat').hidden = false; return () => clearTimeout(closeT); }
+  const unlink = () => links.forEach(a => { a.removeEventListener('pointerenter', onOver); a.removeEventListener('pointerleave', close); a.classList.remove('is-peek'); });
+  if (!gl) { canvas.remove(); root.querySelector('.hz__flat').hidden = false; return () => { clearTimeout(closeT); unlink(); }; }
   const prog = program(gl, VS_FULL, FS);
   gl.useProgram(prog.p);
   fullscreenQuad(gl, prog);
@@ -152,12 +164,23 @@ export function mountHome(root) {
   gl.activeTexture(gl.TEXTURE2);
   const mtex = texture(gl, null);
 
-  let W = 1, H = 1, k = 1;
+  let W = 1, H = 1, k = 1, faceY = .42;
+  // Desktop: la foto cubre la pantalla. Móvil: se aleja (ocupa ~58% del alto) y se
+  // apoya abajo; arriba sigue el mismo fondo de papel y queda aire para el nombre
+  const frame = ([w, h]) => {
+    const ir = w / h;
+    let dw, dh;
+    if (isNarrow()) { dh = H * .58; dw = dh * ir; if (dw < W) { dw = W; dh = W / ir; } }
+    else if (ir > W / H) { dh = H; dw = H * ir; } else { dw = W; dh = W / ir; }
+    const ox = (W - dw) / 2, oy = isNarrow() ? H - dh : (H - dh) / 2;
+    return { f: [W / dw, H / dh, -ox / dw, -oy / dh], oy, dh };
+  };
   const fitAll = () => {
-    const sr = W / H;
-    const f = ([w, h]) => { const ir = w / h; return ir > sr ? [sr / ir, 1] : [1, ir / sr]; };
-    gl.uniform2f(U.uFitTop, ...f(sizes.top));
-    gl.uniform2f(U.uFitUnder, ...f(sizes.under));
+    const t = frame(sizes.top);
+    gl.uniform4f(U.uFitTop, ...t.f);
+    gl.uniform4f(U.uFitUnder, ...frame(sizes.under).f);
+    faceY = (t.oy + t.dh * .44) / H;
+    gl.uniform1f(U.uCA, isNarrow() ? 2.6 : 1);
   };
   const size = () => {
     W = root.clientWidth; H = root.clientHeight;
@@ -199,7 +222,7 @@ export function mountHome(root) {
   };
   let headA = 0;
   let tx = null, ty = null, cx = null, cy = null, lx = 0, ly = 0;
-  let mx = W / 2, my = H * .42, touched = 0, idle = 0, rx = 0, ry = 0;
+  let mx = W / 2, my = H * .5, touched = 0, idle = 0, rx = 0, ry = 0;
   const follow = (dt, paint) => {
     if (tx === null) return;
     if (cx === null) { cx = tx; cy = ty; lx = cx; ly = cy; spawn(cx, cy); return; }
@@ -228,7 +251,7 @@ export function mountHome(root) {
       // Sin cursor, un trazo lento recorre la cara
       idle += dt;
       tx = W / 2 + Math.sin(idle * .7) * Math.min(W, H) * .16 + Math.sin(idle * 1.9) * 20;
-      ty = H * .42 + Math.sin(idle * 1.13 + 1) * H * .12;
+      ty = H * faceY + Math.sin(idle * 1.13 + 1) * H * (isNarrow() ? .07 : .12);
     }
     // En reposo la lente pasea sin dejar rastro; el rastro es solo tuyo
     follow(Math.min(dt, .05), touched > 0);
@@ -270,6 +293,7 @@ export function mountHome(root) {
     alive = false;
     stop();
     clearTimeout(closeT);
+    unlink();
     removeEventListener('resize', size);
     removeEventListener('pointermove', onMove);
     removeEventListener('pointerdown', onMove);

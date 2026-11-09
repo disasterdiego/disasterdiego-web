@@ -217,14 +217,15 @@ const MONI_H = `${CL}/video/upload/v1789131546/completo_monidero.mp4`;
 const MONI_V = `${CL}/video/upload/v1792336698/SaveClip.App_AQM_UeVfJINF46vnrUVUN8_FoSJTZKVxuwMQfpks2bKpNvdIZwqm7Vkk36tubfNhxRF4FY_DsXP1zDmt2nJddCSGMW05P1fX5GMDaUY.mp4`;
 
 // DESIGN: un carrusel por post. slides = fotos y/o .mp4, en orden, formato 4:5.
+// desc: una línea que se lee bajo el nombre (en móvil y en el índice de desktop).
 // >>> Sustituye los placeholders por tus posts reales <<<
 export const DESIGN = [
-  { title: 'disasterIDego', slides: ['disc', 'detail', 'inverted', 'tunnel', 'mask', 'tribal', 'manifesto'].map(n => `assets/id/${n}.webp`) },
-  { title: 'Monidero', slides: [`${CL}/image/upload/f_auto,q_auto/1`, `${CL}/image/upload/v1792022029/2.png`, MONI_V, `${CL}/image/upload/v1792022043/4.png`, `${CL}/image/upload/v1792370085/WEB_DESIGN-11.png`, `${CL}/image/upload/v1792370087/WEB_DESIGN-08.png`] },
-  { title: 'Post placeholder 01', slides: ph('abcdef') },
-  { title: 'Post placeholder 02', slides: ph('defgh') },
-  { title: 'Post placeholder 03', slides: ph('hgijkl') },
-  { title: 'Post placeholder 04', slides: ph('jklbc') },
+  { title: 'disasterIDego', tag: 'Identidad', desc: 'Identidad personal: fotocopia, tribal y negativo. Un sistema hecho de errores.', slides: ['disc', 'detail', 'inverted', 'tunnel', 'mask', 'tribal', 'manifesto'].map(n => `assets/id/${n}.webp`) },
+  { title: 'Monidero', tag: 'Social', desc: 'Carrusel del drop Monopoly × McDonald’s: producto, textura y campaña.', slides: [`${CL}/image/upload/f_auto,q_auto/1`, `${CL}/image/upload/v1792022029/2.png`, MONI_V, `${CL}/image/upload/v1792022043/4.png`, `${CL}/image/upload/v1792370085/WEB_DESIGN-11.png`, `${CL}/image/upload/v1792370087/WEB_DESIGN-08.png`] },
+  { title: 'Post placeholder 01', tag: 'Post', desc: '[Una línea sobre el proyecto: qué es y para quién]', slides: ph('abcdef') },
+  { title: 'Post placeholder 02', tag: 'Post', desc: '[Una línea sobre el proyecto: qué es y para quién]', slides: ph('defgh') },
+  { title: 'Post placeholder 03', tag: 'Post', desc: '[Una línea sobre el proyecto: qué es y para quién]', slides: ph('hgijkl') },
+  { title: 'Post placeholder 04', tag: 'Post', desc: '[Una línea sobre el proyecto: qué es y para quién]', slides: ph('jklbc') },
   ];
 
 // CONTENT: tus vídeos. ratio '9/16' vertical, '16/9' horizontal (o el que sea).

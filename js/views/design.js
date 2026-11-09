@@ -2,6 +2,7 @@
 // cebolla con una ranura; por la ranura se ve entero, en horizontal, el proyecto actual.
 import { DESIGN } from '../data.js';
 import { createIndex } from '../index-list.js';
+import { mountDesignMobile } from './design-mobile.js';
 import { ticker, damp, wrap, mod, clamp, opt, esc, bindDrag, isNarrow, reduced } from '../lib.js';
 
 const isVideo = u => u.endsWith('.mp4') || u.includes('/video/upload/');
@@ -9,6 +10,7 @@ const pad = n => String(n).padStart(2, '0');
 const STEP = 25;
 
 export function mountDesign(root) {
+  if (isNarrow()) return mountDesignMobile(root);
   const n = DESIGN.length;
   const tickSvg = DESIGN.map((_, i) => {
     const a = (i / n) * 360;
@@ -47,7 +49,7 @@ export function mountDesign(root) {
   // Los datos del proyecto viven en el índice, no encima de las fotos
   const info = document.createElement('div');
   info.className = 'dinfo';
-  info.innerHTML = `<span id="d-n"></span><span id="d-c"></span><span class="dinfo__bar"><i id="d-b"></i></span><span class="dinfo__hint">${isNarrow() ? 'Desliza' : 'Scroll ↕ proyecto · ↔ fotos'}</span>`;
+  info.innerHTML = `<span id="d-n"></span><span id="d-c"></span><p class="dinfo__desc" id="d-d"></p><span class="dinfo__bar"><i id="d-b"></i></span><span class="dinfo__hint">${isNarrow() ? 'Desliza' : 'Scroll ↕ proyecto · ↔ fotos'}</span>`;
   root.querySelector('.side').append(info);
   // Fuera de Chrome los filtros SVG no se ven en 3D: se usa desenfoque y sombras de color
   const svgOk = !!window.chrome;
@@ -77,7 +79,8 @@ export function mountDesign(root) {
     cur = i;
     const d = DESIGN[i];
     $('#d-n').textContent = `${pad(i + 1)}/${pad(n)}`;
-    $('#d-c').textContent = `${d.slides.length} piezas`;
+    $('#d-c').textContent = `${d.tag ? `${d.tag} · ` : ''}${d.slides.length} piezas`;
+    $('#d-d').textContent = d.desc || '';
     index.setActive(i);
     rows.forEach((r, k) => {
       r.el.classList.toggle('is-current', k === i);

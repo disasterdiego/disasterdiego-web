@@ -1,5 +1,5 @@
 import { SOCIALS, WORLDS, PROJECTS, DESIGN, CONTENT, findProject } from './data.js';
-import { ticker, lerp, damp, finePointer, reduced, opt, esc } from './lib.js';
+import { ticker, lerp, damp, finePointer, reduced, esc } from './lib.js';
 import { initFx, fxHide } from './fx.js';
 import { initScan } from './scan.js';
 import { sound } from './sound.js';
@@ -15,12 +15,6 @@ const $ = id => document.getElementById(id);
 const view = $('view');
 initScan();
 const COUNTS = { advertising: PROJECTS.advertising.length, design: DESIGN.length, content: CONTENT.length };
-const THUMBS = {
-  advertising: PROJECTS.advertising[0].cover,
-  design: PROJECTS.advertising[1].cover,
-  content: PROJECTS.advertising[2].cover,
-  about: PROJECTS.advertising[3].cover,
-};
 
 // ---------- Contacto ----------
 const external = s => (s.key === 'mail' ? '' : ' target="_blank" rel="noopener noreferrer"');
@@ -36,15 +30,10 @@ const syncSound = () => {
 soundBtn.addEventListener('click', () => { sound.toggle(); syncSound(); });
 syncSound();
 
-// ---------- Menú desplegable ----------
-const panel = $('panel');
-const roll = t => `<span class="roll" data-text="${esc(t)}"><span>${esc(t)}</span></span>`;
-panel.innerHTML = WORLDS.map((w, i) => `
-  <a class="panel__row" href="#/${w.id}" data-world="${w.id}" style="--i:${i}" data-cursor-ui>
-    <span class="panel__n">0${i + 1}</span>
-    <span class="panel__thumb"><img src="${opt(THUMBS[w.id], 160)}" alt="" loading="lazy"></span>
-    <span class="panel__title display">${roll(w.label)}</span>
-    <span class="panel__note">${COUNTS[w.id] ?? ''}</span>
+// ---------- Menú: las cuatro secciones siempre a la vista ----------
+$('nav-links').innerHTML = WORLDS.map((w, i) => `
+  <a class="nav__link" href="#/${w.id}" data-world="${w.id}" style="--i:${i}" data-cursor-ui>
+    <span class="nav__n">0${i + 1}</span><span class="nav__t">${esc(w.label)}</span>${COUNTS[w.id] ? `<sup>${String(COUNTS[w.id]).padStart(2, '0')}</sup>` : ''}
   </a>`).join('');
 
 // Tipografía única: Syne Mono para todo (títulos, textos y pies)
@@ -56,18 +45,6 @@ panel.innerHTML = WORLDS.map((w, i) => `
   document.documentElement.dataset.font = 'Syne Mono';
   document.fonts?.load("400 20px 'Syne Mono'").then(() => dispatchEvent(new Event('fontchange'))).catch(() => {});
 }
-
-const toggle = $('menu-toggle');
-const setMenu = open => {
-  document.body.classList.toggle('menu-open', open);
-  toggle.setAttribute('aria-expanded', open);
-  panel.inert = !open;
-  $('menu-label').textContent = open ? 'Close' : 'Menu';
-};
-toggle.addEventListener('click', () => setMenu(!document.body.classList.contains('menu-open')));
-$('scrim').addEventListener('click', () => setMenu(false));
-panel.addEventListener('click', e => { if (e.target.closest('a')) setMenu(false); });
-addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
 
 // La barra aloja el control de cada página: así no flota nada encima de los textos
 export function setBarSlot(html) {
@@ -213,7 +190,6 @@ const setNight = on => {
   nightOn = on;
   document.documentElement.classList.toggle('is-night', on);
   nightBtn.setAttribute('aria-pressed', on);
-  nightBtn.querySelector('b').textContent = on ? 'Noche' : 'Día';
   document.querySelector('meta[name=theme-color]').content = on ? '#111110' : '#eeeeeb';
   try { localStorage.setItem('dd-night', on ? '1' : '0'); } catch {}
 };
@@ -230,6 +206,11 @@ export function toggleNight() {
   }).catch(() => {});
 }
 nightBtn.addEventListener('click', toggleNight);
+// En móvil el botón vive junto a las redes, arriba a la derecha
+const mqNarrow = matchMedia('(max-width: 819px)');
+const placeNight = () => { if (mqNarrow.matches) $('socials').append(nightBtn); else hud.after(nightBtn); };
+placeNight();
+mqNarrow.addEventListener?.('change', placeNight);
 addEventListener('keydown', e => {
   if (e.target.closest?.('input,textarea') || e.metaKey || e.ctrlKey) return;
   if (e.key === 'n' || e.key === 'N') toggleNight();
