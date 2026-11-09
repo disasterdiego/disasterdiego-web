@@ -226,9 +226,13 @@ export function toggleNight() {
   }).catch(() => {});
 }
 nightBtn.addEventListener('click', toggleNight);
-// En móvil el botón vive junto a las redes, arriba a la derecha
+// En móvil el botón vive junto a las redes
 const mqNarrow = matchMedia('(max-width: 819px)');
-const placeNight = () => { if (mqNarrow.matches) $('socials').append(nightBtn); else hud.after(nightBtn); };
+// y las redes dentro del desplegable: abajo solo queda la pastilla centrada
+const placeNight = () => {
+  if (mqNarrow.matches) { $('socials').append(nightBtn); $('nav-panel').append($('socials')); }
+  else { hud.after(nightBtn); $('bar').after($('socials')); }
+};
 placeNight();
 mqNarrow.addEventListener?.('change', placeNight);
 addEventListener('keydown', e => {

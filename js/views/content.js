@@ -7,13 +7,13 @@
 import { CONTENT } from '../data.js';
 import { setCursorLabel } from '../main.js';
 import { createIndex } from '../index-list.js';
+import { openLightbox, closeLightbox } from '../lightbox.js';
 import { ticker, damp, wrap, mod, clamp, opt, esc, isNarrow, bindDrag, reduced } from '../lib.js';
 
 const isVideo = u => u.endsWith('.mp4') || u.includes('/video/upload/');
 const ratioOf = r => { const [a, b] = r.split('/').map(Number); return a / b; };
 const pad = n => String(n).padStart(2, '0');
-const LENS = ['24MM · F/2.8', '35MM · F/2', '50MM · F/1.4', '85MM · F/1.8'];
-const tc = t => { const f = Math.floor((t % 1) * 24); const x = Math.floor(t); return `${pad(Math.floor(x / 60))}:${pad(x % 60)}:${pad(f)}`; };
+
 const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5 4.6 13.4A4.6 4.6 0 0 1 12 6.9a4.6 4.6 0 0 1 7.4 6.5z"/></svg>';
 const BUBBLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>';
 const SOUND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/></svg>';
@@ -32,8 +32,6 @@ export function mountContent(root) {
         ${CONTENT.map((c, i) => `<figure class="vclip reel" style="--ar:${ratioOf(c.ratio)}">${isVideo(c.src)
           ? `<video data-src="${c.src}" crossorigin="anonymous" muted loop playsinline preload="none"></video>`
           : `<img src="${opt(c.src, 1000)}" alt="" loading="lazy" draggable="false">`}
-          <div class="vf" aria-hidden="true"><i class="vf__k vf__k--tl"></i><i class="vf__k vf__k--tr"></i><i class="vf__k vf__k--bl"></i><i class="vf__k vf__k--br"></i>
-            <span class="vf__rec"><i></i>REC <b class="vf__tc">00:00:00</b></span><span class="vf__lens">${LENS[i % LENS.length]} · ${c.ratio.replace('/', ':')}</span><i class="vf__x"></i></div>
           <figcaption><b>${pad(i + 1)}</b> ${esc(c.title)}</figcaption><i class="reel__bar"></i></figure>`).join('')}
       </div>
       <div class="rail" id="rail">
@@ -55,7 +53,7 @@ export function mountContent(root) {
       <form id="c-form"><input name="name" maxlength="30" placeholder="Nombre (opcional)" autocomplete="off"><textarea name="text" maxlength="280" rows="2" placeholder="Escribe un comentario" required></textarea><button type="submit" data-cursor-ui>Publicar</button></form>
     </section>`;
 
-  const clips = [...root.querySelectorAll('.reel')].map((el, i) => ({ el, i, v: el.querySelector('video'), bar: el.querySelector('.reel__bar'), tc: el.querySelector('.vf__tc') }));
+  const clips = [...root.querySelectorAll('.reel')].map((el, i) => ({ el, i, v: el.querySelector('video'), bar: el.querySelector('.reel__bar') }));
   const dialItems = [...root.querySelectorAll('.cdial__i')], scale = root.querySelector('.cdial__scale');
   root.querySelector('#cdial').addEventListener('click', e => { const it = e.target.closest('.cdial__i'); if (it) go(dialItems.indexOf(it)); });
   const stage = root.querySelector('#stage');
@@ -71,7 +69,7 @@ export function mountContent(root) {
     const b = stage.getBoundingClientRect();
     clips.forEach((c, i) => {
       const r = ratioOf(CONTENT[i].ratio);
-      const w = Math.min(b.width * .92, b.height * .74 * r);
+      const w = Math.min(b.width * .96, b.height * .86 * r);
       c.el.style.width = `${w}px`;
       c.el.style.height = `${w / r}px`;
     });
@@ -141,11 +139,20 @@ export function mountContent(root) {
     renderSocial();
   });
 
+  // Clic en el vídeo: se abre en grande, con sonido; al final, el siguiente clip
+  const openClip = i => {
+    const c = CONTENT[i], j = (i + 1) % n;
+    if (clips[i]?.v) clips[i].v.pause();
+    openLightbox({
+      n: pad(i + 1), title: c.title, items: [c.src], sound: true, from: i === cur ? clips[i].el : null,
+      next: { label: `${pad(j + 1)} ${CONTENT[j].title}`, open: () => { go(j); openClip(j); } },
+    });
+  };
   const snap = () => { tp = dir > 0 ? Math.ceil(tp - .12) : Math.floor(tp + .12); };
   const offDrag = bindDrag(stage, {
     onMove: (dx, dy) => { tp -= dy * .004; if (dy) dir = -Math.sign(dy); },
     onEnd: snap,
-    onTap: toggleSound,
+    onTap: () => openClip(cur),
   });
   stage.addEventListener('dragstart', e => e.preventDefault());
   const onWheel = e => {
@@ -163,7 +170,7 @@ export function mountContent(root) {
     if (e.key === 'ArrowUp') { dir = -1; tp = Math.round(tp) - 1; }
   };
   addEventListener('keydown', onKey);
-  const onHover = e => { if (e.pointerType === 'mouse') setCursorLabel(clips[cur]?.v ? (muted ? 'Sound on' : 'Sound off') : ''); };
+  const onHover = e => { if (e.pointerType === 'mouse') setCursorLabel('Ampliar ↗'); };
   stage.addEventListener('pointermove', onHover, { passive: true });
   stage.addEventListener('pointerleave', () => setCursorLabel(''));
 
@@ -188,22 +195,23 @@ export function mountContent(root) {
       if (!show) continue;
       const k = reduced ? 0 : 1;
       // Los vecinos asoman arriba y abajo, más pequeños, desenfocados y con el color separado
-      c.el.style.transform = `translate(-50%,-50%) translate3d(0,${d * 96}%,0) scale(${1 - Math.min(ad, 1) * .3 * k})`;
+      c.el.style.transform = `translate(-50%,-50%) translate3d(0,${d * 102}%,0) scale(${1 - Math.min(ad, 1) * .3 * k})`;
       c.el.style.opacity = clamp(1.35 - ad * .75, 0, 1);
       const blur = Math.round(Math.min(ad, 1) * 7 * k);
       if (blur !== c.blur) { c.blur = blur; c.el.style.filter = blur ? `blur(${blur}px)` : 'none'; }
       const o = (Math.min(ad, 1) * 14 * k).toFixed(1);
-      c.el.style.boxShadow = ad > .02 ? `-${o}px 0 0 rgb(0 110 255 / .5), ${o}px 0 0 rgb(255 40 40 / .5), 0 ${(o * .5).toFixed(1)}px 0 rgb(0 190 90 / .4)` : 'none';
+      c.el.style.boxShadow = ad > .02 ? `-${o}px 0 0 rgb(0 110 255 / .5), ${o}px 0 0 rgb(255 40 40 / .5), 0 ${(o * .5).toFixed(1)}px 0 rgb(0 190 90 / .4), 0 -${(o * .5).toFixed(1)}px 0 rgb(255 205 0 / .4)` : 'none';
       c.el.style.zIndex = ad < .5 ? 2 : 1;
     }
     const v = clips[cur]?.v;
     const prog = v && v.duration ? v.currentTime / v.duration : 0;
-    if (clips[cur]) { clips[cur].bar.style.transform = `scaleX(${prog})`; clips[cur].tc.textContent = tc(v ? v.currentTime : (performance.now() / 1000) % 60); }
+    if (clips[cur]) clips[cur].bar.style.transform = `scaleX(${prog})`;
   });
 
   return () => {
     stop();
     offDrag();
+    closeLightbox();
     root.removeEventListener('wheel', onWheel);
     setCursorLabel('');
     clips.forEach(c => { if (c.v) { c.v.pause(); c.v.removeAttribute('src'); c.v.load(); } });

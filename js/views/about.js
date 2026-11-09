@@ -7,8 +7,8 @@
 import { ABOUT, PROJECTS, SOCIALS } from '../data.js';
 import { esc, ticker, damp, clamp, isNarrow, reduced, finePointer, getGL, program, fullscreenQuad, VS_FULL, texture, loadImage } from '../lib.js';
 
-// Tu cara limpia (la foto de arriba de la home), recortada a la cara
-const IMG = 'assets/home/top.webp';
+// Tu foto limpia, recortada a la cara
+const IMG = 'assets/home/clean.webp';
 const ZOOM = 2.2, FACE = [.5, .42];
 const pad = n => String(n).padStart(2, '0');
 const SECTIONS = [
@@ -69,10 +69,14 @@ export function mountAbout(root) {
 
   root.innerHTML = `
     <div class="ap">
-      <aside class="ap__ring" id="ap-ring" aria-label="Secciones">
-        <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="56"/><g id="ap-ticks">${Array.from({ length: 48 }, (_, i) => `<path transform="rotate(${i * 7.5} 60 60)" d="M60 4v${i % 4 ? 4 : 8}"/>`).join('')}</g></svg>
-        <span class="ap__dist" id="ap-dist">∞</span>
-        <ol>${SECTIONS.map((s, i) => `<li><a href="#a-${s.id}" data-s="${i}" data-cursor-ui><span>${pad(i + 1)}</span>${s.name}</a></li>`).join('')}</ol>
+      <aside class="ap__ring ap__barrel" id="ap-ring" aria-label="Secciones">
+        <p class="ap__bk">Enfoque</p>
+        <div class="ap__bbody">
+          <i class="ap__bscale" id="ap-ticks" aria-hidden="true"></i>
+          <ol>${SECTIONS.map((s, i) => `<li><a href="#a-${s.id}" data-s="${i}" data-cursor-ui><em>${s.dist}</em><span>${pad(i + 1)} ${s.name}</span></a></li>`).join('')}</ol>
+          <i class="ap__needle" id="ap-needle" aria-hidden="true"></i>
+        </div>
+        <p class="ap__bk" id="ap-dist">∞</p>
       </aside>
 
       <section class="ap__s ap__hero" id="a-enfoque" data-s="0">
@@ -120,7 +124,7 @@ export function mountAbout(root) {
 
   // ---------- Índice en anillo: gira con el scroll y dice a qué distancia estás ----------
   const secs = [...root.querySelectorAll('.ap__s')], ringLinks = [...root.querySelectorAll('#ap-ring a')];
-  const ticks = $('#ap-ticks'), dist = $('#ap-dist');
+  const ticks = $('#ap-ticks'), dist = $('#ap-dist'), needle = $('#ap-needle');
   let active = -1;
   on(root.querySelector('#ap-ring'), 'click', e => {
     const a = e.target.closest('a[data-s]');
@@ -150,11 +154,16 @@ export function mountAbout(root) {
     b.setAttribute('aria-expanded', String(!was));
   });
   if (finePointer) {
+    // Con un pequeño retardo: al pasar rápido por encima no se gira ninguna a medias
+    let hov = null, hT = 0;
+    const flipTo = b => root.querySelectorAll('.ap__brand button').forEach(x => x.setAttribute('aria-expanded', String(x === b)));
     on($('#ap-brands'), 'pointerover', e => {
       const b = e.target.closest('.ap__brand button');
-      root.querySelectorAll('.ap__brand button').forEach(x => x.setAttribute('aria-expanded', String(x === b)));
+      if (b === hov) return;
+      hov = b; clearTimeout(hT);
+      hT = setTimeout(() => flipTo(hov), 140);
     });
-    on($('#ap-brands'), 'pointerleave', () => root.querySelectorAll('.ap__brand button').forEach(x => x.setAttribute('aria-expanded', 'false')));
+    on($('#ap-brands'), 'pointerleave', () => { hov = null; clearTimeout(hT); hT = setTimeout(() => flipTo(null), 140); });
   }
 
   // ---------- 03 Recorrido: anillo arrastrable ----------
@@ -245,7 +254,10 @@ export function mountAbout(root) {
     track.style.transform = `translate3d(${(-pos * sw).toFixed(1)}px,0,0)`;
     stops.forEach((s, i) => { const d = Math.abs(i - pos); s.style.setProperty('--d', Math.min(d, 2).toFixed(3)); });
     dial.style.setProperty('--rot', `${(-pos * 24).toFixed(1)}deg`);
-    ticks.setAttribute('transform', `rotate(${(root.scrollTop / Math.max(1, root.scrollHeight - root.clientHeight)) * 200} 60 60)`);
+    // Como el anillo de un objetivo: la escala corre y la aguja marca a qué distancia estás
+    const sp = root.scrollTop / Math.max(1, root.scrollHeight - root.clientHeight);
+    ticks.style.backgroundPositionY = `${(-sp * 160).toFixed(1)}px`;
+    needle.style.top = `${(sp * 100).toFixed(2)}%`;
   });
 
   return () => {
