@@ -62,7 +62,8 @@ export function mountContent(root) {
     const b = stage.getBoundingClientRect();
     clips.forEach((c, i) => {
       const r = ratioOf(CONTENT[i].ratio);
-      const w = Math.min(b.width * .96, b.height * .86 * r);
+      // Siempre queda una calle a la derecha para los likes, aunque el vídeo sea horizontal
+      const w = Math.min(isNarrow() ? b.width * .96 : b.width - 150, b.height * .86 * r);
       c.el.style.width = `${w}px`;
       c.el.style.height = `${w / r}px`;
     });
