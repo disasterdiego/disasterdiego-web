@@ -73,7 +73,7 @@ export function mountAbout(root) {
         <p class="ap__bk">Enfoque</p>
         <div class="ap__bbody">
           <i class="ap__bscale" id="ap-ticks" aria-hidden="true"></i>
-          <ol>${SECTIONS.map((s, i) => `<li><a href="#a-${s.id}" data-s="${i}" data-cursor-ui><em>${s.dist}</em><span>${pad(i + 1)} ${s.name}</span></a></li>`).join('')}</ol>
+          <ol>${SECTIONS.map((s, i) => `<li><a href="#a-${s.id}" data-s="${i}" data-cursor-ui><em>${s.dist}</em><span>${s.name}</span></a></li>`).join('')}</ol>
           <i class="ap__needle" id="ap-needle" aria-hidden="true"></i>
         </div>
         <p class="ap__bk" id="ap-dist">∞</p>

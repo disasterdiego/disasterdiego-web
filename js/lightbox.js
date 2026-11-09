@@ -24,7 +24,6 @@ const build = () => {
   document.body.append(el);
 };
 
-const clipOf = r => `inset(${r.top}px ${innerWidth - r.right}px ${innerHeight - r.bottom}px ${r.left}px round 8px)`;
 
 // open({ n, title, desc, items: [src], start, from: Element, sound, next: { label, open() } })
 export function openLightbox(o) {
@@ -33,9 +32,9 @@ export function openLightbox(o) {
   el.querySelector('.lb__name b').textContent = o.n || '';
   el.querySelector('.lb__name span').textContent = o.title || '';
   el.querySelector('.lb__desc').textContent = o.desc || '';
-  track.innerHTML = o.items.map(src => `<figure class="lb__slide">${isVideo(src)
+  track.innerHTML = o.items.map((src, j) => `<figure class="lb__slide">${isVideo(src)
     ? `<video src="${src}" ${o.sound ? 'controls' : 'muted'} loop playsinline preload="metadata"></video>`
-    : `<img src="${opt(src, 1600)}" alt="" draggable="false">`}</figure>`).join('')
+    : `<img src="${j === (o.start || 0) && o.fromSrc ? o.fromSrc : opt(src, 1600)}" data-hi="${opt(src, 1600)}" alt="" draggable="false">`}</figure>`).join('')
     + (o.next ? `<button type="button" class="lb__next" data-cursor-ui><small>Siguiente</small><b>${esc(o.next.label)}</b><span>→</span></button>` : '');
   dots.innerHTML = o.items.length > 1 ? o.items.map(() => '<i></i>').join('') : '';
   el.querySelector('.lb__arrow--l').hidden = el.querySelector('.lb__arrow--r').hidden = o.items.length < 2 && !o.next;
@@ -64,9 +63,15 @@ export function openLightbox(o) {
     document.body.classList.remove('lb-open');
     off();
     const done = () => { el.hidden = true; vids.forEach(v => { v.pause(); v.removeAttribute('src'); v.load(); }); track.innerHTML = ''; };
-    const r = o.from?.isConnected && o.from.getBoundingClientRect();
-    if (reduced || !r || !r.width) { done(); return; }
-    el.animate([{ clipPath: 'inset(0px 0px 0px 0px round 0px)' }, { clipPath: clipOf(r) }], { duration: 460, easing: EASE }).onfinish = done;
+    const k0 = Math.round(track.scrollLeft / W()), img = track.children[k0]?.querySelector('img, video');
+    const r = k0 === (o.start || 0) && o.from?.isConnected && o.from.getBoundingClientRect();
+    if (reduced) { done(); return; }
+    el.querySelectorAll('.lb__top, .lb__bottom, .lb__arrow').forEach(x => x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' }));
+    el.animate([{ backgroundColor: getComputedStyle(el).backgroundColor }, { backgroundColor: 'transparent' }], { duration: 420, fill: 'forwards' }).onfinish = () => { el.getAnimations().forEach(a => a.cancel()); el.querySelectorAll('.lb__top, .lb__bottom, .lb__arrow').forEach(x => x.getAnimations().forEach(a => a.cancel())); done(); };
+    if (img && r && r.width) {
+      const last = img.getBoundingClientRect(), k = r.width / last.width;
+      img.animate([{ transform: 'none' }, { transform: `translate(${r.left + r.width / 2 - (last.left + last.width / 2)}px,${r.top + r.height / 2 - (last.top + last.height / 2)}px) scale(${k})` }], { duration: 420, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+    } else if (img) img.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.94)' }], { duration: 300, fill: 'forwards' });
   };
   const onClick = e => {
     if (e.target.closest('.lb__x')) close();
@@ -78,7 +83,8 @@ export function openLightbox(o) {
   const onStart = e => { sy = e.touches[0].clientY; };
   const onMove = e => { if (sy === null) return; const dy = e.touches[0].clientY - sy; if (dy > 0) track.style.transform = `translateY(${dy * .5}px) scale(${1 - Math.min(dy, 300) / 1500})`; };
   const onEnd = e => { const dy = (e.changedTouches[0]?.clientY ?? 0) - (sy ?? 0); sy = null; track.style.transform = ''; if (dy > 110) close(); };
-  const onWheel = e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); clearTimeout(onWheel.t); onWheel.t = setTimeout(() => step(Math.sign(e.deltaY)), 40); } };
+  let wl = 0;
+  const onWheel = e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); const now = performance.now(); if (now > wl && Math.abs(e.deltaY) > 12) { wl = now + 550; step(Math.sign(e.deltaY)); } } };
   track.addEventListener('scroll', sync, { passive: true });
   el.addEventListener('click', onClick);
   addEventListener('keydown', onKey);
@@ -95,10 +101,21 @@ export function openLightbox(o) {
     el.removeEventListener('touchend', onEnd);
     el.removeEventListener('wheel', onWheel);
   }
-  if (!reduced && o.from) {
-    const r = o.from.getBoundingClientRect();
-    el.animate([{ clipPath: clipOf(r) }, { clipPath: 'inset(0px 0px 0px 0px round 0px)' }], { duration: 640, easing: EASE });
-    track.animate([{ transform: 'scale(.92)', filter: 'blur(8px)' }, { transform: 'none', filter: 'none' }], { duration: 640, easing: EASE });
+  // Apertura: el fondo aparece y la foto vuela desde donde estaba hasta su sitio, entera
+  const startImg = track.children[o.start || 0]?.querySelector('img');
+  const hiRes = () => track.querySelectorAll('img[data-hi]').forEach(im => { if (im.src !== im.dataset.hi) { const pre = new Image(); pre.onload = () => { im.src = im.dataset.hi; }; pre.src = im.dataset.hi; } });
+  if (reduced) hiRes();
+  else {
+    el.animate([{ backgroundColor: 'transparent' }, { backgroundColor: getComputedStyle(el).backgroundColor }], { duration: 420, easing: 'ease-out' });
+    el.querySelectorAll('.lb__top, .lb__bottom, .lb__arrow').forEach(x => x.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, delay: 200, fill: 'backwards' }));
+    const fly = () => {
+      const r = o.from?.getBoundingClientRect(), last = startImg?.getBoundingClientRect();
+      if (!r || !last || !last.width) { track.animate([{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 500, easing: EASE }); hiRes(); return; }
+      const k = r.width / last.width;
+      const dx = r.left + r.width / 2 - (last.left + last.width / 2), dy = r.top + r.height / 2 - (last.top + last.height / 2);
+      startImg.animate([{ transform: `translate(${dx}px,${dy}px) scale(${k})`, borderRadius: '10px' }, { transform: 'none', borderRadius: '6px' }], { duration: 620, easing: 'cubic-bezier(.2,.8,.2,1)' }).onfinish = hiRes;
+    };
+    if (startImg && !startImg.complete) startImg.decode?.().then(fly, fly); else fly();
   }
   return { close };
 }

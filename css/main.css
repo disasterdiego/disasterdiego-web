@@ -1936,3 +1936,50 @@ body:has(.ml .dc__loupe.is-on) .cursor { opacity: 0 !important; }
   .dv-zapping .dcap { bottom: calc(var(--dock) + 66px); }
 }
 body:has(.view.dv-oscuro) :is(.nav, .social, .hud, .night), body:has(.view.dv-fotomaton) :is(.hud) { --ink: #e9e2dc; --paper: #0b0807; --mute: rgb(233 226 220 / .5); --line: rgb(233 226 220 / .15); --glass: rgb(24 18 16 / .82); color: #e9e2dc; }
+
+/* ==========================================================
+   ITERACIÓN 16: Design en Arco + Fotomatón pulido, menús laterales más finos
+   ========================================================== */
+/* Arco */
+.ar { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab; }
+.ar:active { cursor: grabbing; }
+.ar__stage { position: absolute; inset: 0; perspective: 1600px; perspective-origin: 50% 45%; }
+.ar__p { --o: 0; position: absolute; left: 50%; top: 47%; width: var(--cw); transform-style: preserve-3d; will-change: transform, filter; }
+.ar__col { position: relative; }
+.ar__s { display: block; width: 100%; padding: 0; overflow: hidden; border-radius: 12px; background: #e3e2dd; }
+.ar__s img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; pointer-events: none; }
+.ar__s.is-cover { position: relative; z-index: 2; box-shadow: 0 24px 50px rgb(0 0 0 / .16); transition: box-shadow .5s; }
+.ar__p.is-cur .ar__s.is-cover { box-shadow: -3px 0 0 rgb(0 110 255 / .35), 3px 0 0 rgb(255 40 40 / .35), 0 2px 0 rgb(0 190 90 / .3), 0 -2px 0 rgb(255 205 0 / .3), 0 28px 60px rgb(0 0 0 / .2); }
+.ar__s:not(.is-cover) { position: absolute; left: 50%; top: 50%; width: var(--sw); border-radius: 10px; opacity: var(--o); pointer-events: none;
+  transform: translate(-50%, -50%) translateY(calc(var(--s) * var(--o) * (var(--cw) * .625 + 12px + (var(--a) - .5) * (var(--sw) * 1.25 + 10px)))) scale(calc(.7 + var(--o) * .3)); box-shadow: 0 12px 28px rgb(0 0 0 / .12); }
+.ar__p.is-cur .ar__s:not(.is-cover) { pointer-events: auto; }
+.ar__s:not(.is-cover):hover { box-shadow: -2px 0 0 rgb(0 110 255 / .45), 2px 0 0 rgb(255 40 40 / .45), 0 12px 28px rgb(0 0 0 / .14); }
+.ar__info { position: absolute; z-index: 60; left: var(--gut); bottom: calc(var(--gut) + 34px); max-width: 300px; pointer-events: none; }
+.ar__info span { font-size: 9px; text-transform: uppercase; color: var(--mute); }
+.ar__info h2 { margin: 6px 0 8px; font: 400 calc(clamp(30px, 3.4vw, 56px) * var(--ds) * 1.3) / .95 var(--pixel); letter-spacing: -.04em; text-shadow: -2px 0 rgb(0 110 255 / .45), 2px 0 rgb(255 40 40 / .45), 0 1px rgb(0 190 90 / .35), 0 -1px rgb(255 205 0 / .35); }
+.ar__info p { margin: 0; font-size: 11px; line-height: 1.45; }
+.ar__stage { -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); }
+@media (max-width: 819px) {
+  .ar__p { top: 46%; }
+  .ar__info { left: 14px; right: 14px; bottom: calc(var(--dock) + 8px); max-width: none; }
+  .ar__info p { display: none; }
+  .ar__info h2 { font-size: calc(8vw * var(--ds) * 1.3); }
+}
+
+/* Fotomatón: esquinas redondeadas, más aire y color */
+.fm__t { padding: 5px; }
+.fm__t img { border-radius: 12px; filter: grayscale(.55) brightness(.85); transition: filter .5s, box-shadow .5s; }
+.fm__t.is-hot img { border-radius: 10px; }
+
+/* Visor: la foto vuela desde su sitio; nada de recortes */
+.lb__slide img { will-change: transform; }
+
+/* Menús laterales sin números, más estrechos; el contenido se queda centrado */
+@media (min-width: 820px) {
+  .side__n, .ap__barrel a span:first-child, .ap__barrel a em { display: none !important; }
+  .side, .ap__ring.ap__barrel { width: 130px; }
+  .view--content .reels { left: calc(var(--gut) + 150px); right: calc(var(--gut) + 150px); }
+  .ap { padding: 0 calc(var(--gut) + 150px) !important; }
+}
+.lb__slide { min-width: 0; min-height: 0; overflow: hidden; }
+.lb__slide img, .lb__slide video { width: auto; height: auto; max-width: 100%; max-height: calc(100svh - 170px - env(safe-area-inset-top, 0px) - var(--safe-b)); object-fit: contain; }
