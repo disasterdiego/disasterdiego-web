@@ -1,29 +1,32 @@
-// DESIGN: tres maneras de ver los carruseles, todas desde la lente. Se cambia arriba.
-//  1 · Contactos   — hoja de contactos: cada proyecto es una tira de negativos; una lupa
-//                    amplía la foto que miras y el resto de filas se desenfoca.
-//  2 · Profundidad — los proyectos están uno detrás de otro; el scroll mueve el foco
-//                    hacia el fondo: lo enfocado es nítido, lo demás borroso y con color separado.
-//  3 · Diafragma   — un proyecto cada vez dentro de un iris; al cambiar, las láminas
-//                    se cierran y se abren con el siguiente. Los nombres giran alrededor.
-// En las tres, tocar una foto la abre a pantalla completa.
+// DESIGN: cinco maneras de ver los carruseles (para probar; se cambia arriba).
+//  1 Mesa de luz  — todas las piezas sobre una mesa enorme que se arrastra; el proyecto
+//                   que miras se enfoca y una lupa amplía la pieza.
+//  2 Ruleta       — cada proyecto es un carrusel circular de diapositivas que gira con
+//                   el scroll; a los lados cambias de cartucho (proyecto).
+//  3 Cuarto oscuro— todo en negativo; la luz roja revela lo que alumbras y, si te quedas,
+//                   la foto termina de revelarse.
+//  4 Fotomatón    — mosaico infinito en movimiento; el cursor es una lente que amplía la
+//                   pieza y aparta a las vecinas.
+//  5 Zapping      — una pieza cada vez, a pantalla completa, con tirón de foco al pasar.
+// En todas, tocar una pieza la abre a pantalla completa.
 import { DESIGN } from '../data.js';
 import { setBarSlot } from '../main.js';
-import { createIndex } from '../index-list.js';
+import { sound } from '../sound.js';
 import { openLightbox, closeLightbox } from '../lightbox.js';
-import { ticker, damp, clamp, opt, esc, bindDrag, isNarrow, reduced, finePointer } from '../lib.js';
+import { ticker, damp, clamp, mod, opt, esc, bindDrag, isNarrow, reduced, finePointer } from '../lib.js';
 
 const isVideo = u => u.endsWith('.mp4') || u.includes('/video/upload/');
-const thumb = (u, w = 620) => (isVideo(u) ? u.replace(/\.mp4$/i, '.jpg') : opt(u, w));
+const thumb = (u, w = 520) => (isVideo(u) ? u.replace(/\.mp4$/i, '.jpg') : opt(u, w));
 const pad = n => String(n).padStart(2, '0');
 const N = DESIGN.length;
-const TOTAL = DESIGN.reduce((a, d) => a + d.slides.length, 0);
-// La URL va absoluta: dentro de una variable CSS se resolvería desde la carpeta css/
-const ca3 = src => `<i class="ca3" aria-hidden="true" style="--bg:url('${new URL(thumb(src), location.href).href}')"><b></b><b></b><b></b></i>`;
+const ITEMS = DESIGN.flatMap((d, i) => d.slides.map((src, k) => ({ i, k, src })));
 
 const MODES = [
-  { id: 'contactos', label: 'Contactos', mount: mountContact },
-  { id: 'profundidad', label: 'Profundidad', mount: mountDepth },
-  { id: 'diafragma', label: 'Diafragma', mount: mountIris },
+  { id: 'mesa', label: 'Mesa de luz', mount: mountTable },
+  { id: 'ruleta', label: 'Ruleta', mount: mountCarousel },
+  { id: 'oscuro', label: 'Cuarto oscuro', mount: mountDark },
+  { id: 'fotomaton', label: 'Fotomatón', mount: mountBooth },
+  { id: 'zapping', label: 'Zapping', mount: mountZap },
 ];
 
 function openProject(i, k = 0, from = null) {
@@ -35,287 +38,294 @@ function openProject(i, k = 0, from = null) {
 }
 
 export function mountDesign(root) {
-  let mode = 'contactos';
-  try { mode = MODES.some(m => m.id === sessionStorage.getItem('design-v')) ? sessionStorage.getItem('design-v') : mode; } catch {}
+  let mode = 'mesa';
+  try { const v = sessionStorage.getItem('design-v5'); if (MODES.some(m => m.id === v)) mode = v; } catch {}
   const slot = setBarSlot(`<div class="switch switch--3" role="group" aria-label="Versión">${MODES.map((m, i) =>
     `<button type="button" data-v="${m.id}" data-cursor-ui><span>${i + 1}</span> ${m.label}</button>`).join('')}</div>`);
   const btns = [...slot.querySelectorAll('[data-v]')];
   let off = null;
   const show = id => {
     mode = id;
-    try { sessionStorage.setItem('design-v', id); } catch {}
+    try { sessionStorage.setItem('design-v5', id); } catch {}
     btns.forEach(b => { b.classList.toggle('is-active', b.dataset.v === id); b.setAttribute('aria-pressed', b.dataset.v === id); });
     off?.();
     root.innerHTML = '';
-    root.classList.toggle('is-scroll', id === 'contactos');
+    root.className = `view view--design dv-${id}`;
     root.scrollTop = 0;
     off = MODES.find(m => m.id === id).mount(root);
-    root.firstElementChild?.animate?.([{ opacity: 0, filter: 'blur(12px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: 700, easing: 'cubic-bezier(.16,1,.3,1)' });
   };
   btns.forEach(b => b.addEventListener('click', () => { if (b.dataset.v !== mode) show(b.dataset.v); }));
   show(mode);
-  return () => { off?.(); closeLightbox(); root.classList.remove('is-scroll'); };
+  return () => { off?.(); closeLightbox(); };
 }
 
-// ---------------------------------------------------------------- 1 · CONTACTOS
-function mountContact(root) {
-  root.insertAdjacentHTML('beforeend', `
-    <div class="dc">
-      <header class="dc__intro">
-        <p class="dc__k">02 — Design · Hoja de contactos</p>
-        <h1 class="dc__h">Carruseles, <br>fotograma a fotograma</h1>
-        <p class="dc__sub"><span>${pad(N)} proyectos</span><span>${TOTAL} piezas</span><span>${finePointer ? 'Pasa la lupa · clic para ampliar' : 'Toca para ampliar'}</span></p>
-      </header>
-      ${DESIGN.map((d, i) => `
-      <section class="dc__row" data-i="${i}">
-        <div class="dc__meta">
-          <b class="dc__n">${pad(i + 1)}</b>
-          <h2 class="dc__t">${esc(d.title)}</h2>
-          <span class="dc__tag">${esc(d.tag || '')} · ${pad(d.slides.length)}</span>
-          ${d.desc ? `<p class="dc__desc">${esc(d.desc)}</p>` : ''}
-        </div>
-        <div class="dc__film">${d.slides.map((src, k) => `
-          <button type="button" class="dc__f" data-k="${k}" aria-label="Ampliar ${esc(d.title)}, pieza ${k + 1}">
-            <img src="${thumb(src, 520)}" data-big="${thumb(src, 1400)}" alt="" loading="${i < 2 ? 'eager' : 'lazy'}" draggable="false">
-            <small>${pad(i + 1)}${String.fromCharCode(65 + k)}</small>${isVideo(src) ? '<i class="dc__play">▶</i>' : ''}
-          </button>`).join('')}
-        </div>
-      </section>`).join('')}
-      <p class="dc__end">Fin de la hoja — <a href="#/content">03 Content →</a></p>
-    </div>
-    <div class="dc__loupe" aria-hidden="true"><i></i><span>×2.6</span></div>`);
-  const dc = root.querySelector('.dc'), loupe = root.querySelector('.dc__loupe'), lens = loupe.firstElementChild;
-  const rows = [...dc.querySelectorAll('.dc__row')];
-
-  const onClick = e => {
-    const f = e.target.closest('.dc__f');
-    if (f) openProject(+f.closest('.dc__row').dataset.i, +f.dataset.k, f);
+// Etiqueta común abajo a la izquierda: proyecto y pieza
+const caption = root => {
+  root.insertAdjacentHTML('beforeend', '<p class="dcap"><b></b><span></span></p>');
+  const el = root.querySelector('.dcap');
+  let last = '';
+  return (i, extra = '') => {
+    const t = i < 0 ? '' : `${i}|${extra}`;
+    if (t === last) return;
+    last = t;
+    el.classList.toggle('is-on', i >= 0);
+    if (i < 0) return;
+    el.firstChild.textContent = `${pad(i + 1)} ${DESIGN[i].title}`;
+    el.lastChild.textContent = extra || `${DESIGN[i].tag || ''} · ${pad(DESIGN[i].slides.length)} piezas`;
   };
-  dc.addEventListener('click', onClick);
+};
 
-  // Lupa: amplía la foto que hay bajo el ratón
-  const Z = 2.6, L = 220;
-  let shownSrc = '';
+// ---------------------------------------------------------------- 1 · MESA DE LUZ
+function mountTable(root) {
+  const narrow = isNarrow(), S = narrow ? 120 : 190, gap = narrow ? 14 : 22;
+  const cols = narrow ? 2 : 3;
+  // Cada proyecto es un grupo de diapositivas; los grupos se reparten en una rejilla
+  let html = '', bw = 0, bh = 0;
+  const gw = 3 * (S + gap) + 80, gh = Math.ceil(7 / 3) * (S * 1.25 + gap) + 140;
+  DESIGN.forEach((d, i) => {
+    const gx = (i % cols) * gw + 120, gy = Math.floor(i / cols) * gh + 140;
+    html += `<p class="ml__label" style="left:${gx}px;top:${gy - 46}px"><b>${pad(i + 1)}</b> ${esc(d.title)} <span>${pad(d.slides.length)}</span></p>`;
+    d.slides.forEach((src, k) => {
+      const x = gx + (k % 3) * (S + gap) + (Math.random() - .5) * 18, y = gy + Math.floor(k / 3) * (S * 1.25 + gap) + (Math.random() - .5) * 18;
+      html += `<button type="button" class="ml__p" data-i="${i}" data-k="${k}" style="left:${x}px;top:${y}px;width:${S}px;--r:${((Math.random() - .5) * 6).toFixed(1)}deg"><img src="${thumb(src)}" alt="" draggable="false" loading="lazy"></button>`;
+    });
+    bw = Math.max(bw, gx + gw); bh = Math.max(bh, gy + gh);
+  });
+  root.insertAdjacentHTML('beforeend', `<div class="ml" id="ml"><div class="ml__board" style="width:${bw}px;height:${bh}px">${html}</div>
+    <p class="dhint">${narrow ? 'Arrastra para moverte · toca para ampliar' : 'Arrastra o haz scroll para moverte · clic amplía'}</p>
+    <div class="dc__loupe" aria-hidden="true"><i></i><span>×2.6</span></div></div>`);
+  const ml = root.querySelector('#ml'), board = ml.firstElementChild, cap = caption(root);
+  const loupe = ml.querySelector('.dc__loupe'), lens = loupe.firstElementChild;
+  let x = 0, y = 0, tx = 0, ty = 0, vx = 0, vy = 0, dragging = false;
+  const W = () => ml.clientWidth, H = () => ml.clientHeight;
+  const lim = () => { tx = clamp(tx, Math.min(0, W() - bw), 0); ty = clamp(ty, Math.min(0, H() - bh), 0); };
+  tx = (W() - Math.min(bw, W() * 1.4)) / 2; ty = 0; lim(); x = tx; y = ty;
+  const offDrag = bindDrag(ml, {
+    onStart: () => { dragging = true; vx = vy = 0; loupe.classList.remove('is-on'); },
+    onMove: (dx, dy) => { tx += dx; ty += dy; vx = dx; vy = dy; lim(); },
+    onEnd: () => { dragging = false; tx += vx * 12; ty += vy * 12; lim(); },
+    onTap: e => { dragging = false; const p = e.target.closest('.ml__p'); if (p) openProject(+p.dataset.i, +p.dataset.k, p); },
+  });
+  const onWheel = e => { e.preventDefault(); tx -= e.deltaX; ty -= e.deltaY; lim(); };
+  ml.addEventListener('wheel', onWheel, { passive: false });
+  let hot = -1;
   const onMove = e => {
-    const f = e.target.closest?.('.dc__f');
-    if (!f || e.pointerType !== 'mouse') { loupe.classList.remove('is-on'); return; }
-    const img = f.querySelector('img'), r = f.getBoundingClientRect();
-    const nw = img.naturalWidth || 4, nh = img.naturalHeight || 5;
-    const s = Math.max(r.width / nw, r.height / nh), dw = nw * s, dh = nh * s;
-    const ox = (r.width - dw) / 2, oy = (r.height - dh) / 2;
-    if (shownSrc !== img.dataset.big) { shownSrc = img.dataset.big; lens.style.backgroundImage = `url('${img.dataset.big}'), url('${img.currentSrc || img.src}')`; }
-    lens.style.backgroundSize = `${dw * Z}px ${dh * Z}px`;
-    lens.style.backgroundPosition = `${L / 2 - (e.clientX - r.left - ox) * Z}px ${L / 2 - (e.clientY - r.top - oy) * Z}px`;
+    const p = e.target.closest?.('.ml__p');
+    const i = p ? +p.dataset.i : -1;
+    if (i !== hot) { hot = i; ml.classList.toggle('has-hot', i >= 0); ml.querySelectorAll('.ml__p').forEach(el => el.classList.toggle('is-hot', +el.dataset.i === i)); cap(i); }
+    if (!p || e.pointerType !== 'mouse' || dragging) { loupe.classList.remove('is-on'); return; }
+    const r = p.getBoundingClientRect(), img = p.firstElementChild, Z = 2.6, L = 220;
+    lens.style.backgroundImage = `url('${img.currentSrc || img.src}')`;
+    lens.style.backgroundSize = `${r.width * Z}px ${r.height * Z}px`;
+    lens.style.backgroundPosition = `${L / 2 - (e.clientX - r.left) * Z}px ${L / 2 - (e.clientY - r.top) * Z}px`;
     loupe.style.transform = `translate3d(${e.clientX - L / 2}px,${e.clientY - L / 2}px,0)`;
     loupe.classList.add('is-on');
   };
-  const onLeave = () => loupe.classList.remove('is-on');
-  if (finePointer) { dc.addEventListener('pointermove', onMove, { passive: true }); dc.addEventListener('pointerleave', onLeave); }
-
-  // En el móvil la fila del centro se enfoca y las demás se desenfocan
-  const io = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle('is-focus', e.isIntersecting)),
-    { root, rootMargin: '-40% 0px -40% 0px' });
-  rows.forEach(r => io.observe(r));
-  dc.classList.toggle('is-touch', !finePointer);
-
-  return () => { io.disconnect(); dc.removeEventListener('click', onClick); dc.removeEventListener('pointermove', onMove); dc.removeEventListener('pointerleave', onLeave); };
+  ml.addEventListener('pointermove', onMove, { passive: true });
+  const stop = ticker.add(dt => {
+    x = damp(x, tx, dragging ? 30 : 7, dt); y = damp(y, ty, dragging ? 30 : 7, dt);
+    board.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`;
+  });
+  return () => { stop(); offDrag(); ml.removeEventListener('wheel', onWheel); };
 }
 
-// ---------------------------------------------------------------- 2 · PROFUNDIDAD
-function mountDepth(root) {
-  root.insertAdjacentHTML('beforeend', `
-    <div class="dz" id="dz">
-      <div class="dz__stage">${DESIGN.map((d, i) => `
-        <div class="dz__plane" data-i="${i}"><div class="dz__strip">${d.slides.map((src, k) => `
-          <button type="button" class="dz__f" data-k="${k}" aria-label="Ampliar ${esc(d.title)}, pieza ${k + 1}"><img src="${thumb(src)}" alt="" loading="${i < 2 ? 'eager' : 'lazy'}" draggable="false">${ca3(src)}</button>`).join('')}
-        </div></div>`).join('')}
-      </div>
-      <div class="dz__info" aria-live="polite"><span class="dz__n" id="dz-n"></span><h2 class="dz__t" id="dz-t"></h2><p class="dz__d" id="dz-d"></p></div>
-      <div class="dz__focus" aria-hidden="true"><span>∞</span><i><b id="dz-ind"></b></i><span>0,7 m</span></div>
-      <p class="dz__hint">${isNarrow() ? 'Desliza ↕ proyecto · ↔ fotos' : 'Scroll ↕ enfoca · ↔ fotos · clic amplía'}</p>
+// ---------------------------------------------------------------- 2 · RULETA
+function mountCarousel(root) {
+  root.insertAdjacentHTML('beforeend', `<div class="rl" id="rl">
+      <div class="rl__stage"><div class="rl__ring" id="rl-ring"></div></div>
+      <div class="rl__carts">${DESIGN.map((d, i) => `<button type="button" class="rl__cart" data-i="${i}" data-cursor-ui><b>${pad(i + 1)}</b><span>${esc(d.title)}</span></button>`).join('')}</div>
+      <p class="dhint">${isNarrow() ? 'Desliza ↕ gira · ↔ cambia de carrete · toca para ampliar' : 'Scroll gira · ← → cambia de carrete · clic amplía'}</p>
     </div>`);
-  const dz = root.querySelector('#dz'), planes = [...dz.querySelectorAll('.dz__plane')].map((el, i) => ({ el, i, strip: el.firstElementChild, pan: 0, tpan: 0 }));
-  const $ = s => root.querySelector(s);
-  let p = 0, tp = 0, cur = -1, snapT = 0;
-  const index = createIndex(root, DESIGN, { onEnter: i => { tp = i; }, onPick: i => { tp = i; } });
-  const setCur = i => {
-    cur = i;
-    const d = DESIGN[i];
-    $('#dz-n').textContent = `${pad(i + 1)}/${pad(N)} · ${d.tag || ''} · ${pad(d.slides.length)} piezas`;
-    $('#dz-t').textContent = d.title;
-    $('#dz-d').textContent = d.desc || '';
-    index.setActive(i);
-    planes.forEach(pl => pl.el.classList.toggle('is-cur', pl.i === i));
+  const rl = root.querySelector('#rl'), ring = root.querySelector('#rl-ring'), carts = [...root.querySelectorAll('.rl__cart')], cap = caption(root);
+  let cur = -1, a = 0, ta = 0, slides = [], n = 1, R = 300;
+  const load = i => {
+    cur = (i + N) % N;
+    const d = DESIGN[cur];
+    n = d.slides.length;
+    const w = isNarrow() ? innerWidth * .52 : Math.min(300, innerHeight * .34);
+    R = Math.max(w * .75, (w + 30) / (2 * Math.tan(Math.PI / Math.max(n, 3))));
+    ring.style.setProperty('--w', `${w}px`);
+    ring.innerHTML = d.slides.map((src, k) => `<button type="button" class="rl__s" data-k="${k}"><img src="${thumb(src, 700)}" alt="" draggable="false"></button>`).join('');
+    slides = [...ring.children];
+    a = ta = 0;
+    carts.forEach((c, j) => c.classList.toggle('is-on', j === cur));
+    ring.animate?.([{ opacity: 0, transform: 'translateZ(-400px)' }, { opacity: 1, transform: 'none' }], { duration: 600, easing: 'cubic-bezier(.16,1,.3,1)' });
+    sound.click();
   };
-  const maxPan = pl => Math.max(0, pl.strip.scrollWidth - dz.clientWidth * (isNarrow() ? .86 : .62));
-  const offDrag = bindDrag(dz, {
-    onMove: (dx, dy) => {
-      if (Math.abs(dx) > Math.abs(dy)) { const pl = planes[cur]; if (pl) pl.tpan = clamp(pl.tpan - dx * 1.2, 0, maxPan(pl)); return; }
-      tp = clamp(tp - dy * .006, -.2, N - .8);
+  load(0);
+  const front = () => mod(Math.round(-ta / (360 / n)), n);
+  let ax = 0, ay = 0;
+  const offDrag = bindDrag(rl, {
+    onStart: () => { ax = ay = 0; },
+    onMove: (dx, dy) => { ax += dx; ay += dy; if (Math.abs(ay) > Math.abs(ax)) ta += dy * .35; },
+    onEnd: () => { if (Math.abs(ax) > 60 && Math.abs(ax) > Math.abs(ay)) load(cur + (ax < 0 ? 1 : -1)); ta = Math.round(ta / (360 / n)) * (360 / n); },
+    onTap: e => {
+      const s = e.target.closest('.rl__s');
+      if (s) { if (+s.dataset.k === front()) openProject(cur, +s.dataset.k, s); else ta = -(+s.dataset.k) * (360 / n); }
+      const c = e.target.closest('.rl__cart');
+      if (c) load(+c.dataset.i);
     },
-    onEnd: () => { tp = clamp(Math.round(tp), 0, N - 1); },
   });
+  let wt = 0;
   const onWheel = e => {
     e.preventDefault();
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { const pl = planes[cur]; if (pl) pl.tpan = clamp(pl.tpan + e.deltaX, 0, maxPan(pl)); return; }
-    tp = clamp(tp + e.deltaY * .0022, -.2, N - .8);
-    snapT = .25;
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 20 && performance.now() > wt) { load(cur + Math.sign(e.deltaX)); wt = performance.now() + 700; return; }
+    ta -= e.deltaY * .25;
+    clearTimeout(onWheel.t); onWheel.t = setTimeout(() => { ta = Math.round(ta / (360 / n)) * (360 / n); }, 120);
   };
-  dz.addEventListener('wheel', onWheel, { passive: false });
-  const onClick = e => { const f = e.target.closest('.dz__f'); if (f && +f.closest('.dz__plane').dataset.i === cur) openProject(cur, +f.dataset.k, f); else if (f) tp = +f.closest('.dz__plane').dataset.i; };
-  dz.addEventListener('click', onClick);
-  const onKey = e => {
-    if (e.key === 'ArrowDown') tp = clamp(Math.round(tp) + 1, 0, N - 1);
-    if (e.key === 'ArrowUp') tp = clamp(Math.round(tp) - 1, 0, N - 1);
-    const pl = planes[cur];
-    if (pl && e.key === 'ArrowRight') pl.tpan = clamp(pl.tpan + 300, 0, maxPan(pl));
-    if (pl && e.key === 'ArrowLeft') pl.tpan = clamp(pl.tpan - 300, 0, maxPan(pl));
-  };
+  rl.addEventListener('wheel', onWheel, { passive: false });
+  const onKey = e => { if (e.key === 'ArrowRight') load(cur + 1); if (e.key === 'ArrowLeft') load(cur - 1); if (e.key === 'ArrowDown') ta -= 360 / n; if (e.key === 'ArrowUp') ta += 360 / n; };
   addEventListener('keydown', onKey);
-  const ind = $('#dz-ind');
+  let lastF = -1;
   const stop = ticker.add(dt => {
-    if (snapT > 0) { snapT -= dt; if (snapT <= 0) tp = clamp(Math.round(tp), 0, N - 1); }
-    p = damp(p, tp, 5.5, dt);
-    const a = clamp(Math.round(p), 0, N - 1);
-    if (a !== cur) setCur(a);
-    const k = reduced ? .3 : 1;
-    for (const pl of planes) {
-      const d = pl.i - p, ad = Math.abs(d);
-      const show = d > -1.2 && d < 4.5;
-      pl.el.style.visibility = show ? '' : 'hidden';
-      if (!show) continue;
-      // Detrás: más lejos, más pequeño y borroso. Delante: pasa junto a la cámara y se va
-      pl.el.style.transform = `translate(-50%,-50%) translate3d(${(d * (isNarrow() ? 3 : 7)).toFixed(2)}vw,${(-d * (isNarrow() ? 11 : 15)).toFixed(2)}vh,${(-d * 650 * k).toFixed(1)}px)`;
-      pl.el.style.opacity = d < 0 ? clamp(1 + d * 1.6, 0, 1) : clamp(1 - d * .2, .15, 1);
-      const blur = Math.min(ad * 5, 14);
-      pl.el.style.filter = blur > .3 ? `blur(${blur.toFixed(1)}px)` : 'none';
-      pl.el.style.setProperty('--o', `${Math.min(ad * 9, 22).toFixed(1)}px`);
-      pl.el.classList.toggle('is-ca', ad > .12);
-      pl.el.style.zIndex = String(100 - Math.round(ad * 10));
-      pl.pan = damp(pl.pan, pl.tpan, 8, dt);
-      pl.strip.style.transform = `translate3d(${-pl.pan.toFixed(1)}px,0,0)`;
-    }
-    ind.style.transform = `translateY(${(p / Math.max(1, N - 1)) * 100}%)`;
+    a = damp(a, ta, 8, dt);
+    slides.forEach((s, k) => {
+      const ang = k * (360 / n) + a;
+      const d = Math.abs(((ang % 360) + 540) % 360 - 180) / 180; // 0 delante, 1 detrás
+      s.style.transform = `rotateY(${ang}deg) translateZ(${R}px)`;
+      s.style.filter = d > .04 ? `blur(${(d * 8).toFixed(1)}px)` : 'none';
+      s.style.opacity = (1 - d * .7).toFixed(2);
+    });
+    const f = front();
+    if (f !== lastF) { lastF = f; cap(cur, `${pad(f + 1)}/${pad(n)}`); sound.tick(); }
   });
-  return () => { stop(); offDrag(); dz.removeEventListener('wheel', onWheel); removeEventListener('keydown', onKey); };
+  return () => { stop(); offDrag(); rl.removeEventListener('wheel', onWheel); removeEventListener('keydown', onKey); };
 }
 
-// ---------------------------------------------------------------- 3 · DIAFRAGMA
-function mountIris(root) {
-  root.insertAdjacentHTML('beforeend', `
-    <div class="di" id="di">
-      <div class="di__wrap">
-        <div class="di__ring" id="di-ring">${DESIGN.map((d, i) => `<button type="button" class="di__name" data-i="${i}" data-cursor-ui><span>${pad(i + 1)}</span>${esc(d.title)}</button>`).join('')}</div>
-        <svg class="di__scale" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="99"/>${Array.from({ length: 90 }, (_, i) => `<path transform="rotate(${i * 4} 100 100)" d="M100 1v${i % 5 ? 2.5 : 5}"/>`).join('')}</svg>
-        <div class="di__ap" id="di-ap" data-cursor-ui>
-          <div class="di__iris" id="di-iris"><div class="di__imgs" id="di-imgs"></div></div>
-          <i class="di__cross" aria-hidden="true"></i>
-        </div>
-        <div class="di__ticks" id="di-ticks" aria-hidden="true"></div>
-      </div>
-      <div class="di__info" aria-live="polite"><span class="di__n" id="di-n"></span><h2 class="di__t" id="di-t"></h2><p class="di__d" id="di-d"></p><span class="di__c" id="di-c"></span></div>
-      <p class="di__hint">${isNarrow() ? 'Desliza ↔ fotos · ↕ proyecto · toca para ampliar' : 'Scroll ↕ proyecto · ← → fotos · clic amplía'}</p>
-    </div>`);
-  const $ = s => root.querySelector(s);
-  const di = $('#di'), ap = $('#di-ap'), iris = $('#di-iris'), imgs = $('#di-imgs'), ticks = $('#di-ticks');
-  const names = [...root.querySelectorAll('.di__name')];
-  let cur = -1, k = 0, ring = 0, tring = 0, R = 50, rot = 0, busy = false;
-  const index = createIndex(root, DESIGN, { onPick: i => go(i) });
-
-  const poly = (r, a) => {
-    const pts = [];
-    for (let j = 0; j < 8; j++) { const t = a + j * Math.PI / 4; pts.push(`${(50 + r * Math.cos(t)).toFixed(2)}% ${(50 + r * Math.sin(t)).toFixed(2)}%`); }
-    return `polygon(${pts.join(',')})`;
-  };
-  const paintIris = () => { iris.style.clipPath = poly(R, rot); iris.style.webkitClipPath = poly(R, rot); };
-  const fill = i => {
-    const d = DESIGN[i];
-    imgs.innerHTML = d.slides.map((src, j) => `<img src="${thumb(src, 1000)}" alt="" draggable="false" class="${j === 0 ? 'is-on' : ''}">`).join('');
-    ticks.innerHTML = d.slides.map((_, j) => `<i style="--a:${(j - (d.slides.length - 1) / 2) * 7}deg"></i>`).join('');
-    $('#di-n').textContent = `${pad(i + 1)}/${pad(N)} · ${d.tag || ''}`;
-    $('#di-t').textContent = d.title;
-    $('#di-d').textContent = d.desc || '';
-    k = 0; slide(0, true);
-    index.setActive(i);
-    names.forEach((n, j) => n.classList.toggle('is-on', j === i));
-  };
-  const slide = (to, quiet) => {
-    const d = DESIGN[cur];
-    if (!d) return;
-    k = (to + d.slides.length) % d.slides.length;
-    [...imgs.children].forEach((im, j) => im.classList.toggle('is-on', j === k));
-    [...ticks.children].forEach((t, j) => t.classList.toggle('is-on', j === k));
-    $('#di-c').textContent = `${pad(k + 1)}/${pad(d.slides.length)}`;
-    if (!quiet && !reduced) imgs.animate([{ filter: 'blur(10px)', transform: 'scale(1.08)' }, { filter: 'blur(0)', transform: 'scale(1)' }], { duration: 520, easing: 'cubic-bezier(.16,1,.3,1)' });
-  };
-  // Cambio de proyecto: las láminas se cierran girando y se abren con el siguiente
-  const anim = (from, to, dr, dur) => new Promise(done => {
-    const t0 = performance.now(), r0 = rot;
-    const stopA = ticker.add(() => {
-      const q = Math.min(1, (performance.now() - t0) / dur), e = q < .5 ? 4 * q * q * q : 1 - (-2 * q + 2) ** 3 / 2;
-      R = from + (to - from) * e; rot = r0 + dr * e; paintIris();
-      if (q >= 1) { stopA(); done(); }
-    });
+// ---------------------------------------------------------------- 3 · CUARTO OSCURO
+function mountDark(root) {
+  root.classList.add('is-scroll');
+  const grid = cls => `<div class="dr__grid ${cls}">${ITEMS.map((it, n) => `<button type="button" class="dr__p" data-n="${n}" tabindex="${cls === 'dr__pos' ? -1 : 0}"><img src="${thumb(it.src)}" alt="" draggable="false" loading="lazy"></button>`).join('')}</div>`;
+  root.insertAdjacentHTML('beforeend', `<div class="dr" id="dr">
+      <header class="dr__head"><p>02 — Design · Cuarto oscuro</p><h1>Revela con la luz</h1><p>${ITEMS.length} piezas · ${pad(N)} proyectos · ${finePointer ? 'quédate quieto sobre una para revelarla' : 'lo que pasa por el centro se revela'}</p></header>
+      <div class="dr__wrap">${grid('dr__neg')}${grid('dr__pos')}</div>
+    </div><i class="dr__light" aria-hidden="true"></i>`);
+  const dr = root.querySelector('#dr'), wrap = dr.querySelector('.dr__wrap'), pos = dr.querySelector('.dr__pos'), light = root.querySelector('.dr__light'), cap = caption(root);
+  const negs = [...dr.querySelectorAll('.dr__neg .dr__p')], poss = [...pos.children];
+  let mx = innerWidth / 2, my = innerHeight / 2, still = 0, under = -1, lmx = mx, lmy = my;
+  const onMove = e => { if (e.pointerType === 'mouse') { mx = e.clientX; my = e.clientY; } };
+  addEventListener('pointermove', onMove, { passive: true });
+  const onClick = e => { const p = e.target.closest('.dr__neg .dr__p'); if (p) { const it = ITEMS[+p.dataset.n]; openProject(it.i, it.k, p); } };
+  dr.addEventListener('click', onClick);
+  const R = isNarrow() ? 120 : 170;
+  const stop = ticker.add(dt => {
+    if (!finePointer) { mx = innerWidth / 2; my = innerHeight * .45; }
+    const r = wrap.getBoundingClientRect();
+    wrap.style.setProperty('--mx', `${(mx - r.left).toFixed(0)}px`);
+    wrap.style.setProperty('--my', `${(my - r.top).toFixed(0)}px`);
+    wrap.style.setProperty('--r', `${R}px`);
+    light.style.transform = `translate3d(${mx - 260}px,${my - 260}px,0)`;
+    // Revelado: la pieza bajo la luz, si la luz se queda quieta, pasa a positivo para siempre
+    const moved = Math.hypot(mx - lmx, my - lmy); lmx = mx; lmy = my;
+    const el = document.elementFromPoint(mx, my)?.closest?.('.dr__neg .dr__p');
+    const n = el ? +el.dataset.n : -1;
+    if (n !== under) { under = n; still = 0; cap(n >= 0 ? ITEMS[n].i : -1, n >= 0 ? `pieza ${pad(ITEMS[n].k + 1)}` : ''); }
+    still = moved < 2 || !finePointer ? still + dt : Math.max(0, still - dt * 2);
+    if (under >= 0 && still > (finePointer ? 1.1 : 1.6) && !negs[under].classList.contains('is-dev')) { negs[under].classList.add('is-dev'); poss[under].classList.add('is-dev'); sound.copier(); }
   });
-  const go = async i => {
-    i = (i + N) % N;
-    if (i === cur || busy) return;
-    busy = true;
-    tring = i;
-    if (cur < 0 || reduced) { cur = i; fill(i); R = 75; paintIris(); busy = false; return; }
-    await anim(75, 3, .9, 420);
-    cur = i; fill(i);
-    await anim(3, 75, .9, 640);
-    busy = false;
+  return () => { stop(); removeEventListener('pointermove', onMove); dr.removeEventListener('click', onClick); root.classList.remove('is-scroll'); };
+}
+
+// ---------------------------------------------------------------- 4 · FOTOMATÓN
+function mountBooth(root) {
+  const narrow = isNarrow(), C = narrow ? 4 : 7;
+  root.insertAdjacentHTML('beforeend', `<div class="fm" id="fm"><div class="fm__in"></div><p class="dhint">${narrow ? 'Arrastra · toca para ampliar' : 'Pasa la lente · clic amplía'}</p></div>`);
+  const fm = root.querySelector('#fm'), inn = fm.firstElementChild, cap = caption(root);
+  let tiles = [], cw = 0, ch = 0, rows = 0;
+  const build = () => {
+    cw = fm.clientWidth / C; ch = cw * 1.25;
+    rows = Math.ceil(fm.clientHeight / ch) + 2;
+    const list = [];
+    for (let c = 0; c < C; c++) for (let r = 0; r < rows; r++) list.push({ c, r, it: ITEMS[(c * 5 + r * 3) % ITEMS.length] });
+    inn.innerHTML = list.map((t, j) => `<button type="button" class="fm__t" data-j="${j}" style="width:${cw}px;height:${ch}px"><img src="${thumb(t.it.src, 360)}" alt="" draggable="false"></button>`).join('');
+    tiles = list.map((t, j) => ({ ...t, el: inn.children[j], s: 1, ox: 0, oy: 0, target: 1 }));
+  };
+  build();
+  addEventListener('resize', build);
+  const off = Array.from({ length: C }, () => 0), spd = Array.from({ length: C }, (_, c) => (c % 2 ? -1 : 1) * (14 + (c % 3) * 6));
+  let mx = -1e4, my = -1e4, drag = 0;
+  const onMove = e => { const r = fm.getBoundingClientRect(); mx = e.clientX - r.left; my = e.clientY - r.top; };
+  const onLeave = () => { mx = my = -1e4; };
+  fm.addEventListener('pointermove', onMove, { passive: true });
+  fm.addEventListener('pointerleave', onLeave);
+  const offDrag = bindDrag(fm, {
+    onMove: (dx, dy) => { for (let c = 0; c < C; c++) off[c] += dy * (c % 2 ? -1 : 1); drag = .6; },
+    onEnd: () => { if (!finePointer) onLeave(); },
+    onTap: e => { const t = e.target.closest('.fm__t'); if (t) { const it = tiles[+t.dataset.j].it; openProject(it.i, it.k, t); } },
+  });
+  const stop = ticker.add(dt => {
+    const paused = document.body.classList.contains('lb-open');
+    drag = Math.max(0, drag - dt);
+    if (!paused && !reduced && !drag) for (let c = 0; c < C; c++) off[c] += spd[c] * dt;
+    const R = cw * 2.2, total = rows * ch;
+    let best = null, bd = 1e9;
+    for (const t of tiles) {
+      t.bx = t.c * cw; t.by = mod(t.r * ch + off[t.c], total) - ch;
+      const dx = t.bx + cw / 2 - mx, dy = t.by + ch / 2 - my, d = Math.hypot(dx, dy);
+      // La lente amplía la pieza de debajo y empuja a las vecinas hacia fuera
+      const f = Math.max(0, 1 - d / R), push = f * f * cw * .55;
+      t.ox = damp(t.ox, d > 1 ? (dx / d) * push : 0, 10, dt); t.oy = damp(t.oy, d > 1 ? (dy / d) * push : 0, 10, dt);
+      t.target = 1 - f * .18;
+      if (d < bd) { bd = d; best = t; }
+    }
+    const on = best && bd < cw * .7;
+    for (const t of tiles) {
+      const hot = on && t === best;
+      t.s = damp(t.s, hot ? 1.7 : t.target, 10, dt);
+      t.el.style.transform = `translate3d(${(t.bx + t.ox).toFixed(1)}px,${(t.by + t.oy).toFixed(1)}px,0) scale(${t.s.toFixed(3)})`;
+      t.el.style.zIndex = hot ? 5 : 1;
+      if (t.hot !== hot) { t.hot = hot; t.el.classList.toggle('is-hot', hot); }
+    }
+    cap(on ? best.it.i : -1, on ? `pieza ${pad(best.it.k + 1)}` : '');
+  });
+  return () => { stop(); offDrag(); removeEventListener('resize', build); };
+}
+
+// ---------------------------------------------------------------- 5 · ZAPPING
+function mountZap(root) {
+  root.insertAdjacentHTML('beforeend', `<div class="zp" id="zp">
+      <div class="zp__stage" id="zp-stage"><img class="zp__img" alt="" draggable="false"><img class="zp__img" alt="" draggable="false"></div>
+      <div class="zp__strip" id="zp-strip">${ITEMS.map((it, n) => `<button type="button" class="zp__t${it.k === 0 && n ? ' is-first' : ''}" data-n="${n}" data-cursor-ui><img src="${thumb(it.src, 120)}" alt="" loading="lazy"></button>`).join('')}</div>
+      <p class="dhint">${isNarrow() ? 'Desliza ↕ · toca para ampliar' : 'Scroll ↕ o ← → · clic amplía'}</p>
+    </div>`);
+  const zp = root.querySelector('#zp'), stage = root.querySelector('#zp-stage'), [A, B] = stage.children, strip = root.querySelector('#zp-strip'), cap = caption(root);
+  const thumbs = [...strip.children];
+  let cur = -1, front = A;
+  const go = (n, dir = 1) => {
+    n = mod(n, ITEMS.length);
+    if (n === cur) return;
+    const it = ITEMS[n], back = front === A ? B : A, prev = front;
+    back.onload = null;
+    back.src = thumb(it.src, 1400);
+    const run = () => {
+      if (!reduced) {
+        prev.animate([{ filter: 'blur(0)', transform: 'scale(1)', opacity: 1 }, { filter: 'blur(18px)', transform: `scale(${dir > 0 ? 1.12 : .9})`, opacity: 0 }], { duration: 520, easing: 'cubic-bezier(.7,0,.3,1)', fill: 'forwards' });
+        back.animate([{ filter: 'blur(18px)', transform: `scale(${dir > 0 ? .9 : 1.12})`, opacity: 0 }, { filter: 'blur(0)', transform: 'scale(1)', opacity: 1 }], { duration: 620, easing: 'cubic-bezier(.16,1,.3,1)', fill: 'forwards' });
+      } else { prev.style.opacity = 0; back.style.opacity = 1; }
+    };
+    front = back;
+    if (back.complete && back.naturalWidth) run(); else back.onload = run;
+    cur = n;
+    thumbs.forEach((t, j) => t.classList.toggle('is-on', j === n));
+    strip.scrollTo({ left: thumbs[n].offsetLeft - strip.clientWidth / 2 + thumbs[n].offsetWidth / 2, behavior: reduced ? 'auto' : 'smooth' });
+    cap(it.i, `${pad(it.k + 1)}/${pad(DESIGN[it.i].slides.length)}`);
+    sound.tick();
   };
   go(0);
-
-  const onClick = e => {
-    const n = e.target.closest('.di__name');
-    if (n) { go(+n.dataset.i); return; }
-    if (e.target.closest('#di-ap') && !moved) openProject(cur, k, ap);
-  };
-  di.addEventListener('click', onClick);
-  let moved = false, acc = 0;
-  const offDrag = bindDrag(ap, {
-    onStart: () => { moved = false; acc = 0; },
-    onMove: (dx, dy) => { acc += Math.abs(dx) + Math.abs(dy); if (acc > 8) moved = true; ap._dx = (ap._dx || 0) + dx; ap._dy = (ap._dy || 0) + dy; },
-    onEnd: () => {
-      const dx = ap._dx || 0, dy = ap._dy || 0; ap._dx = ap._dy = 0;
-      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) slide(k + (dx < 0 ? 1 : -1));
-      else if (Math.abs(dy) > 40) go(cur + (dy < 0 ? 1 : -1));
-      setTimeout(() => { moved = false; }, 0);
-    },
+  let lock = 0;
+  const step = d => { const now = performance.now(); if (now < lock) return; lock = now + 420; go(cur + d, d); };
+  const onWheel = e => { e.preventDefault(); const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; if (Math.abs(d) > 8) step(Math.sign(d)); };
+  zp.addEventListener('wheel', onWheel, { passive: false });
+  let ay = 0, ax = 0;
+  const offDrag = bindDrag(stage, {
+    onStart: () => { ax = ay = 0; },
+    onMove: (dx, dy) => { ax += dx; ay += dy; },
+    onEnd: () => { const d = Math.abs(ay) > Math.abs(ax) ? ay : ax; if (Math.abs(d) > 40) go(cur + (d < 0 ? 1 : -1), d < 0 ? 1 : -1); },
+    onTap: () => { const it = ITEMS[cur]; openProject(it.i, it.k, front); },
   });
-  let wheelLock = 0;
-  const onWheel = e => {
-    e.preventDefault();
-    const now = performance.now();
-    if (now < wheelLock) return;
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 12) { slide(k + Math.sign(e.deltaX)); wheelLock = now + 380; }
-    else if (Math.abs(e.deltaY) > 12) { go(cur + Math.sign(e.deltaY)); wheelLock = now + 1000; }
-  };
-  di.addEventListener('wheel', onWheel, { passive: false });
-  const onKey = e => {
-    if (e.key === 'ArrowRight') slide(k + 1);
-    if (e.key === 'ArrowLeft') slide(k - 1);
-    if (e.key === 'ArrowDown') go(cur + 1);
-    if (e.key === 'ArrowUp') go(cur - 1);
-  };
+  const onStrip = e => { const t = e.target.closest('.zp__t'); if (t) go(+t.dataset.n, +t.dataset.n > cur ? 1 : -1); };
+  strip.addEventListener('click', onStrip);
+  const onKey = e => { if (['ArrowDown', 'ArrowRight'].includes(e.key)) step(1); if (['ArrowUp', 'ArrowLeft'].includes(e.key)) step(-1); };
   addEventListener('keydown', onKey);
-
-  // Los nombres giran alrededor del iris; el actual queda arriba
-  const stop = ticker.add(dt => {
-    let d = tring - ring;
-    d = ((d + N / 2) % N + N) % N - N / 2;
-    ring += d * (1 - Math.exp(-6 * dt));
-    const Rr = ap.offsetWidth / 2 + (isNarrow() ? 26 : 46);
-    names.forEach((n, j) => {
-      const a = ((j - ring) / N) * Math.PI * 2 - Math.PI / 2;
-      let dd = Math.abs(((j - ring) % N + N) % N); dd = Math.min(dd, N - dd);
-      n.style.transform = `translate(-50%,-50%) translate(${(Math.cos(a) * Rr).toFixed(1)}px,${(Math.sin(a) * Rr).toFixed(1)}px)`;
-      n.style.setProperty('--d', Math.min(dd, 3).toFixed(2));
-    });
-  });
-  return () => { stop(); offDrag(); di.removeEventListener('click', onClick); di.removeEventListener('wheel', onWheel); removeEventListener('keydown', onKey); };
+  return () => { offDrag(); zp.removeEventListener('wheel', onWheel); removeEventListener('keydown', onKey); };
 }
