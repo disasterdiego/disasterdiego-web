@@ -1,19 +1,19 @@
 // Cursores de cristal líquido: el botón de abajo a la izquierda cambia de uno a otro.
-// Cada uno tiene su forma, su forma de moverse y su propio mapa de refracción.
+// Todos llevan la lente con el color separado; cambia cómo reaccionan a lo que hay debajo.
 // scale: tamaño de la lente de la home con ese cursor.
 export const CURSORS = [
-  { id: 'gota', name: 'Gota', w: 58, h: 58, r: 29, motion: 'stretch', scale: 1, glass: 26 },
-  { id: 'pildora', name: 'Píldora', w: 92, h: 42, r: 21, motion: 'spring', scale: 1, glass: 22 },
-  { id: 'lupa', name: 'Lupa', w: 116, h: 116, r: 58, motion: 'lag', scale: 1.4, glass: 40 },
-  { id: 'burbuja', name: 'Burbuja', w: 66, h: 66, r: 33, motion: 'wobble', scale: 1.1, glass: 30 },
-  { id: 'cristal', name: 'Cristal', w: 64, h: 64, r: 14, motion: 'tilt', scale: .9, glass: 24 },
+  { id: 'cruz', name: 'Cruceta', w: 56, h: 56, r: 28, scale: 1, glass: 24 },
+  { id: 'gesto', name: 'Gesto', w: 64, h: 64, r: 32, scale: 1, glass: 26 },
+  { id: 'iman', name: 'Imán', w: 44, h: 44, r: 22, scale: 1, glass: 20 },
+  { id: 'af', name: 'Enfoque', w: 50, h: 50, r: 10, scale: .9, glass: 20 },
+  { id: 'lupa', name: 'Lupa', w: 58, h: 58, r: 29, scale: 1.3, glass: 28 },
 ];
 let i = 0;
-try { i = Math.max(0, CURSORS.findIndex(c => c.id === localStorage.getItem('dd-cursor2'))); } catch {}
+try { i = Math.max(0, CURSORS.findIndex(c => c.id === localStorage.getItem('dd-cursor3'))); } catch {}
 const listeners = new Set();
 const apply = () => {
   document.documentElement.dataset.cursor = CURSORS[i].id;
-  try { localStorage.setItem('dd-cursor2', CURSORS[i].id); } catch {}
+  try { localStorage.setItem('dd-cursor3', CURSORS[i].id); } catch {}
   listeners.forEach(fn => fn(CURSORS[i]));
 };
 apply();

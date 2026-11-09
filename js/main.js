@@ -76,10 +76,16 @@ export function setBarSlot(html) {
 
 // ---------- Cursor ----------
 const cursor = $('cursor');
+cursor.innerHTML = '<i class="cursor__deco" aria-hidden="true"><b></b><b></b><b></b><b></b><em></em></i><span class="cursor__label"></span>';
+const cLabel = cursor.querySelector('.cursor__label'), cWord = cursor.querySelector('.cursor__deco em');
 export function setCursorLabel(html) {
-  cursor.innerHTML = html || '';
+  cLabel.innerHTML = html || '';
   document.body.classList.toggle('cursor-label', !!html);
 }
+// Lo que se hace en cada página: arrastrar en los dos ejes, scroll vertical, zoom…
+// Una zona puede pedir el suyo con data-gesture.
+const GESTURE = { advertising: 'xy', design: 'xy', content: 'y', about: 'y', project: 'y' };
+const WORD = { x: 'Desliza', y: 'Scroll', xy: 'Arrastra', z: 'Zoom' };
 if (finePointer) {
   document.documentElement.classList.add('has-cursor');
   // Cristal líquido: en Chrome refracta de verdad lo que hay debajo (filtro #lg) con el
@@ -87,63 +93,77 @@ if (finePointer) {
   const liquid = !!window.chrome && CSS.supports('backdrop-filter', 'url(#lg)');
   document.documentElement.classList.toggle('has-liquid', liquid);
   const lgMap = $('lg-map');
-  let cfg = null;
-  onCursorChange(c => {
-    cfg = c;
-    cursor.style.setProperty('--cw', `${c.w}px`);
-    cursor.style.setProperty('--ch', `${c.h}px`);
-    cursor.style.setProperty('--cr', `${c.r}px`);
-    if (liquid) {
-      lgMap.setAttribute('href', glassMap(c.w, c.h, c.r));
-      lgMap.setAttribute('width', c.w); lgMap.setAttribute('height', c.h);
-      document.querySelectorAll('#lg feDisplacementMap').forEach((d, k) => d.setAttribute('scale', (c.glass * [1, .86, .72][k]).toFixed(1)));
-    }
-  });
-  let tx = innerWidth / 2, ty = innerHeight / 2, x = tx, y = ty, vx = 0, vy = 0, s = 0, a = 0, rot = 0, k = 1, t = 0;
+  const maps = new Map();
+  let cfg = null, lens = '';
+  // Mapa de refracción para la forma de la lente (se guarda para no recalcularlo)
+  const setLens = (w, h, r, glass) => {
+    const key = `${w}x${h}x${r}`;
+    if (!liquid || key === lens) return;
+    lens = key;
+    if (!maps.has(key)) maps.set(key, glassMap(w, h, r));
+    lgMap.setAttribute('href', maps.get(key));
+    lgMap.setAttribute('width', w); lgMap.setAttribute('height', h);
+    document.querySelectorAll('#lg feDisplacementMap').forEach((d, k) => d.setAttribute('scale', (glass * [1, .86, .72][k]).toFixed(1)));
+  };
+  onCursorChange(c => { cfg = c; setLens(c.w, c.h, c.r, c.glass); });
+
+  let tx = innerWidth / 2, ty = innerHeight / 2, x = tx, y = ty, s = 0, k = 1, cw = 56, ch = 56, cr = 28;
+  let ui = null, media = null, text = false, lastUi = null;
   addEventListener('pointermove', e => { tx = e.clientX; ty = e.clientY; }, { passive: true });
-  ticker.add(dt => {
-    t += dt;
-    const px = x, py = y, m = cfg.motion;
-    if (m === 'spring') {
-      // Muelle: llega, se pasa un poco y vuelve
-      vx += ((tx - x) * 260 - vx * 20) * dt; vy += ((ty - y) * 260 - vy * 20) * dt;
-      x += vx * dt; y += vy * dt;
-    } else {
-      const f = m === 'lag' ? 7 : m === 'tilt' ? 16 : m === 'wobble' ? 12 : 20;
-      x = damp(x, tx, f, dt); y = damp(y, ty, f, dt);
-    }
-    const ux = (x - px) / Math.max(dt, .001), uy = (y - py) / Math.max(dt, .001);
-    const sp = Math.hypot(ux, uy);
-    s = damp(s, Math.min(sp / 2600, .5), 10, dt);
-    if (sp > 40) a = Math.atan2(uy, ux);
-    const ui = document.body.classList.contains('cursor-ui'), down = document.body.classList.contains('cursor-down');
-    k = damp(k, down ? .82 : ui ? 1.22 : 1, 12, dt);
-    const label = document.body.classList.contains('cursor-label');
-    let tr = '';
-    if (label) tr = '';
-    else if (m === 'stretch' || m === 'lag') tr = `rotate(${a}rad) scale(${(1 + s) * k},${(1 - s * .45) * k})`;
-    else if (m === 'spring') tr = `rotate(${a}rad) scale(${(1 + s * .6) * k},${(1 - s * .3) * k})`;
-    else if (m === 'tilt') { rot = damp(rot, Math.max(-28, Math.min(28, ux * .02)), 8, dt); tr = `rotate(${rot}deg) scale(${k})`; }
-    else if (m === 'wobble') {
-      // Burbuja: el contorno respira y se deforma con la velocidad
-      const w = 1 + s * 3;
-      const r1 = 50 + Math.sin(t * 2.1) * 8 * w, r2 = 50 + Math.sin(t * 2.7 + 1) * 8 * w, r3 = 50 + Math.sin(t * 1.8 + 2) * 8 * w, r4 = 50 + Math.sin(t * 2.4 + 3) * 8 * w;
-      cursor.style.borderRadius = `${r1}% ${100 - r1}% ${r3}% ${100 - r3}% / ${r2}% ${r4}% ${100 - r4}% ${100 - r2}%`;
-      tr = `scale(${(1 + s * .5) * k},${(1 - s * .25) * k})`;
-    }
-    if (m !== 'wobble' && cursor.style.borderRadius) cursor.style.borderRadius = '';
-    cursor.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%) ${tr}`;
-    cursor.style.setProperty('--ca', `${(1.5 + s * 9).toFixed(1)}px`);
-  });
-  let lastUi = null;
   document.addEventListener('pointerover', e => {
-    const ui = e.target.closest?.('a,button,[data-cursor-ui]') || null;
+    const t = e.target;
+    const zone = t.closest?.('[data-gesture]');
+    // Dentro de una zona de arrastre, las piezas sin data-cursor-ui son parte del gesto
+    let u = t.closest?.('a,button,[data-cursor-ui]') || null;
+    if (u && zone && zone.contains(u) && !u.hasAttribute('data-cursor-ui')) u = null;
+    ui = u;
+    media = !ui ? t.closest?.('img,video,canvas,figure,.ar__s,.tn__i') || null : null;
+    text = !ui && !media && !!t.closest?.('p,h1,h2,h3,h4,li,blockquote,dd');
+    const g = ui ? '' : zone ? zone.dataset.gesture : GESTURE[document.body.dataset.route] || '';
+    cursor.dataset.g = g;
+    cWord.textContent = WORD[g] || '';
     document.body.classList.toggle('cursor-ui', !!ui);
     if (ui && ui !== lastUi) sound.tick();
     lastUi = ui;
   });
   addEventListener('pointerdown', () => document.body.classList.add('cursor-down'));
   addEventListener('pointerup', () => document.body.classList.remove('cursor-down'));
+  ticker.add(dt => {
+    const m = cfg.id, down = document.body.classList.contains('cursor-down');
+    let w = cfg.w, h = cfg.h, r = cfg.r, cx = tx, cy = ty, snap = null, caret = false;
+    // Imán: se pega al botón y lo abraza. Enfoque: encuadra la foto o el botón como un AF
+    const el = m === 'iman' ? ui : m === 'af' ? ui || media : null;
+    if (el) {
+      const b = el.getBoundingClientRect();
+      if (b.width && b.width < innerWidth * .7 && b.height < innerHeight * .8) {
+        const p = m === 'iman' ? 7 : 5, mx = b.left + b.width / 2, my = b.top + b.height / 2;
+        w = b.width + p * 2; h = b.height + p * 2; r = m === 'iman' ? Math.min(h / 2, 22) : 4;
+        cx = mx + (tx - mx) * (m === 'iman' ? .12 : 0); cy = my + (ty - my) * (m === 'iman' ? .12 : 0);
+        snap = m;
+      }
+    }
+    // Lupa: grande sobre las fotos, una línea sobre el texto, un punto sobre los botones
+    if (m === 'lupa') {
+      if (media) { w = h = 132; r = 66; }
+      else if (ui) { w = h = 16; r = 8; }
+      else if (text) { w = 3; h = 26; r = 2; caret = true; }
+    }
+    if (m === 'cruz' && ui) { w = h = 38; r = 19; }
+    if (!snap) setLens(w, h, Math.min(r, w / 2, h / 2), cfg.glass);
+    const f = snap ? 16 : 20;
+    x = damp(x, cx, f, dt); y = damp(y, cy, f, dt);
+    cw = damp(cw, w, 16, dt); ch = damp(ch, h, 16, dt); cr = damp(cr, r, 16, dt);
+    const sp = Math.hypot(tx - x, ty - y);
+    s = damp(s, Math.min(sp / 90, 1), 10, dt);
+    k = damp(k, down ? .86 : 1, 14, dt);
+    cursor.classList.toggle('is-snap', !!snap);
+    cursor.classList.toggle('is-caret', caret);
+    cursor.style.setProperty('--cw', `${cw.toFixed(1)}px`);
+    cursor.style.setProperty('--ch', `${ch.toFixed(1)}px`);
+    cursor.style.setProperty('--cr', `${cr.toFixed(1)}px`);
+    cursor.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%) scale(${k.toFixed(3)})`;
+    cursor.style.setProperty('--ca', `${(1.5 + s * 7).toFixed(1)}px`);
+  });
 }
 document.addEventListener('click', e => { if (e.target.closest?.('a,button')) sound.click(); }, true);
 

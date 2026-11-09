@@ -39,6 +39,7 @@ export function mountContent(root) {
         <button type="button" class="rail__b" id="r-com" data-cursor-ui>${BUBBLE}<span id="r-coms">0</span></button>
         <button type="button" class="rail__b" id="r-snd" data-cursor-ui>${SOUND}<span>Off</span></button>
         <span class="rail__n" id="r-n"></span>
+        <div class="rail__info"><b id="r-t"></b><p id="r-d"></p></div>
       </div>
     </div>
     <section class="comments" id="comments" aria-label="Comentarios" inert>
@@ -63,13 +64,18 @@ export function mountContent(root) {
     clips.forEach((c, i) => {
       const r = ratioOf(CONTENT[i].ratio);
       // Siempre queda una calle a la derecha para los likes, aunque el vídeo sea horizontal
-      const w = Math.min(isNarrow() ? b.width * .96 : b.width - 150, b.height * .86 * r);
+      // En escritorio, a la derecha queda una columna para likes, título y descripción
+      const w = Math.min(isNarrow() ? b.width * .96 : b.width - 290, b.height * .86 * r);
+      c.w = w;
       c.el.style.width = `${w}px`;
       c.el.style.height = `${w / r}px`;
     });
   };
+  const rail = root.querySelector('#rail');
+  const place = () => { if (clips[cur]) rail.style.setProperty('--hw', `${(clips[cur].w / 2).toFixed(0)}px`); };
   fit();
-  addEventListener('resize', fit, { passive: true });
+  const onResize = () => { fit(); place(); };
+  addEventListener('resize', onResize, { passive: true });
 
   const renderSocial = () => {
     const liked = store.get(key(cur, 'like'), false);
@@ -87,6 +93,9 @@ export function mountContent(root) {
     cur = i;
     const c = CONTENT[i];
     $('#r-n').textContent = `${pad(i + 1)}/${pad(n)}`;
+    $('#r-t').textContent = c.title;
+    $('#r-d').textContent = c.desc || '';
+    place();
     index.setActive(i);
     $('#r-snd').style.visibility = clips[i].v ? '' : 'hidden';
     renderSocial();
@@ -139,7 +148,7 @@ export function mountContent(root) {
     if (clips[i]?.v) clips[i].v.pause();
     setCursorLabel('');
     openLightbox({
-      n: pad(i + 1), title: c.title, items: [c.src], sound: true, from: i === cur ? clips[i].el : null,
+      n: pad(i + 1), title: c.title, desc: c.desc, items: [c.src], sound: true, from: i === cur ? clips[i].el : null,
       next: { label: `${pad(j + 1)} ${CONTENT[j].title}`, open: () => { go(j); openClip(j); } },
     });
   };
@@ -204,7 +213,7 @@ export function mountContent(root) {
     root.removeEventListener('wheel', onWheel);
     setCursorLabel('');
     clips.forEach(c => { if (c.v) { c.v.pause(); c.v.removeAttribute('src'); c.v.load(); } });
-    removeEventListener('resize', fit);
     removeEventListener('keydown', onKey);
+    removeEventListener('resize', onResize);
   };
 }

@@ -231,14 +231,14 @@ export const DESIGN = [
 // CONTENT: tus vídeos. ratio '9/16' vertical, '16/9' horizontal (o el que sea).
 // >>> Sustituye los placeholders por tus vídeos (.mp4 de Cloudinary) <<<
 export const CONTENT = [
-  { src: MONI_V, ratio: '9/16', title: 'Monidero reel' },
-  { src: MONI_H, ratio: '16/9', title: 'Monidero film' },
-  { src: us(IMG.b), ratio: '9/16', title: 'Clip 02 (placeholder)' },
-  { src: us(IMG.c), ratio: '16/9', title: 'Clip 03 (placeholder)' },
-  { src: us(IMG.d), ratio: '16/9', title: 'Clip 04 (placeholder)' },
-  { src: us(IMG.e), ratio: '9/16', title: 'Clip 05 (placeholder)' },
-  { src: us(IMG.f), ratio: '16/9', title: 'Clip 06 (placeholder)' },
-  { src: us(IMG.h), ratio: '9/16', title: 'Clip 07 (placeholder)' },
+  { src: MONI_V, ratio: '9/16', title: 'Monidero reel', desc: 'Descripción breve del clip (por rellenar).' },
+  { src: MONI_H, ratio: '16/9', title: 'Monidero film', desc: 'Descripción breve del clip (por rellenar).' },
+  { src: us(IMG.b), ratio: '9/16', title: 'Clip 02 (placeholder)', desc: 'Descripción breve del clip (por rellenar).' },
+  { src: us(IMG.c), ratio: '16/9', title: 'Clip 03 (placeholder)', desc: 'Descripción breve del clip (por rellenar).' },
+  { src: us(IMG.d), ratio: '16/9', title: 'Clip 04 (placeholder)', desc: 'Descripción breve del clip (por rellenar).' },
+  { src: us(IMG.e), ratio: '9/16', title: 'Clip 05 (placeholder)', desc: 'Descripción breve del clip (por rellenar).' },
+  { src: us(IMG.f), ratio: '16/9', title: 'Clip 06 (placeholder)', desc: 'Descripción breve del clip (por rellenar).' },
+  { src: us(IMG.h), ratio: '9/16', title: 'Clip 07 (placeholder)', desc: 'Descripción breve del clip (por rellenar).' },
 ];
 
 // ABOUT: las marcas salen de tu portfolio; bio, recorrido y premios están POR RELLENAR.
