@@ -41,12 +41,6 @@ export function mountContent(root) {
         <span class="rail__n" id="r-n"></span>
       </div>
     </div>
-    <aside class="cdial" id="cdial" aria-hidden="true" data-cursor-ui>
-      <div class="cdial__scale"></div>
-      ${CONTENT.map((c, i) => `<div class="cdial__i"><span>${pad(i + 1)}</span><b>${esc(c.title)}</b><em>${c.ratio.replace('/', ':')} · ${ratioOf(c.ratio) < 1 ? 'Vertical' : 'Horizontal'}</em></div>`).join('')}
-      <i class="cdial__mark"></i>
-      <p class="cdial__hint">Scroll ↕</p>
-    </aside>
     <section class="comments" id="comments" aria-label="Comentarios" inert>
       <header><b>Comentarios</b><button type="button" id="c-x" data-cursor-ui>Cerrar</button></header>
       <ul id="c-list"></ul>
@@ -54,8 +48,7 @@ export function mountContent(root) {
     </section>`;
 
   const clips = [...root.querySelectorAll('.reel')].map((el, i) => ({ el, i, v: el.querySelector('video'), bar: el.querySelector('.reel__bar') }));
-  const dialItems = [...root.querySelectorAll('.cdial__i')], scale = root.querySelector('.cdial__scale');
-  root.querySelector('#cdial').addEventListener('click', e => { const it = e.target.closest('.cdial__i'); if (it) go(dialItems.indexOf(it)); });
+
   const stage = root.querySelector('#stage');
   const $ = id => root.querySelector(id);
   const comments = $('#comments');
@@ -143,6 +136,7 @@ export function mountContent(root) {
   const openClip = i => {
     const c = CONTENT[i], j = (i + 1) % n;
     if (clips[i]?.v) clips[i].v.pause();
+    setCursorLabel('');
     openLightbox({
       n: pad(i + 1), title: c.title, items: [c.src], sound: true, from: i === cur ? clips[i].el : null,
       next: { label: `${pad(j + 1)} ${CONTENT[j].title}`, open: () => { go(j); openClip(j); } },
@@ -182,12 +176,6 @@ export function mountContent(root) {
     if (a !== cur) setCurrent(a);
 
     // El siguiente sube desde abajo; el que se va se aleja y pierde foco por el borde
-    dialItems.forEach((el, i) => {
-      const d = wrap(i - p, n), ad = Math.abs(d);
-      el.style.transform = `translateY(calc(-50% + ${(d * 64).toFixed(1)}px))`;
-      el.style.setProperty('--d', Math.min(ad, 3).toFixed(3));
-    });
-    scale.style.transform = `translateY(${(-p * 64) % 16}px)`;
     for (const c of clips) {
       const d = wrap(c.i - p, n), ad = Math.abs(d), show = ad < 1.6;
       c.el.style.visibility = show ? '' : 'hidden';

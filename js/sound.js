@@ -2,15 +2,24 @@
 let ctx = null, on = true, last = 0;
 try { on = localStorage.getItem('sound') !== 'off'; } catch {}
 
+// Safari solo deja arrancar el audio dentro de un toque o clic de verdad (touchend,
+// mousedown, click) y además necesita sonar algo en ese momento: un búfer en silencio
 const unlock = () => {
-  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === 'suspended') ctx.resume();
+  try {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state !== 'running') {
+      ctx.resume?.();
+      const b = ctx.createBuffer(1, 1, 22050), src = ctx.createBufferSource();
+      src.buffer = b; src.connect(ctx.destination); src.start(0);
+    }
+  } catch {}
 };
-addEventListener('pointerdown', unlock, { passive: true });
-addEventListener('keydown', unlock);
+['pointerdown', 'mousedown', 'touchend', 'click', 'keydown'].forEach(ev => addEventListener(ev, unlock, { passive: true, capture: true }));
 
-function tone(freq, dur, gain) {
-  if (!on || !ctx || ctx.state !== 'running') return;
+// Si el contexto aún está despertando, el sonido espera a que arranque
+const ready = fn => { if (!on || !ctx) return; if (ctx.state === 'running') fn(); else ctx.resume?.().then(() => { if (ctx.state === 'running') fn(); }).catch(() => {}); };
+function tone(freq, dur, gain) { ready(() => toneNow(freq, dur, gain)); }
+function toneNow(freq, dur, gain) {
   const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
   o.type = 'sine';
   o.frequency.setValueAtTime(freq, t);
@@ -22,8 +31,8 @@ function tone(freq, dur, gain) {
   o.stop(t + dur);
 }
 
-function noise(dur, gain, from, to) {
-  if (!on || !ctx || ctx.state !== 'running') return;
+function noise(dur, gain, from, to) { ready(() => noiseNow(dur, gain, from, to)); }
+function noiseNow(dur, gain, from, to) {
   const n = Math.floor(ctx.sampleRate * dur), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
   const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(), t = ctx.currentTime;

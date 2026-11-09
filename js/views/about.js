@@ -7,9 +7,9 @@
 import { ABOUT, PROJECTS, SOCIALS } from '../data.js';
 import { esc, ticker, damp, clamp, isNarrow, reduced, finePointer, getGL, program, fullscreenQuad, VS_FULL, texture, loadImage } from '../lib.js';
 
-// Tu foto limpia, recortada a la cara
+// Tu foto limpia: el retrato entero, con aire blanco alrededor
 const IMG = 'assets/home/clean.webp';
-const ZOOM = 2.2, FACE = [.5, .42];
+const ZOOM = 1.02, FACE = [.5, .5];
 const pad = n => String(n).padStart(2, '0');
 const SECTIONS = [
   { id: 'enfoque', name: 'Enfoque', dist: '∞' },

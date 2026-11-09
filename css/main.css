@@ -1793,3 +1793,55 @@ body:has(.dc__loupe.is-on) .cursor { opacity: 0 !important; }
 @media (max-width: 819px) { .nav__panel { background: color-mix(in srgb, var(--paper) 96%, transparent); } }
 @media (min-width: 1101px) { .ap { padding-right: calc(var(--gut) + 200px); } }
 @media (max-width: 1100px) and (min-width: 820px) { .ap { padding-right: calc(var(--gut) + 170px); } }
+
+/* ==========================================================
+   ITERACIÓN 14: arreglos de móvil, sol/luna, menús laterales unificados
+   ========================================================== */
+.menu-open .social { pointer-events: auto; }
+.cursor, .has-cursor .cursor { z-index: 400; }
+
+/* Día / noche: un sol que se convierte en luna */
+.night { width: 34px; height: 34px; padding: 0; gap: 0; display: grid; place-items: center; border-radius: 50%; background: var(--glass); isolation: auto; }
+.night span, .night i { display: none; }
+.night svg { grid-area: 1 / 1; width: 20px; height: 20px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; transition: transform .7s var(--expo), opacity .4s; }
+.night__sun circle { fill: var(--ink); }
+.night__moon { fill: var(--ink) !important; stroke: none !important; opacity: 0; transform: rotate(-70deg) scale(.4); }
+.is-night .night__sun { opacity: 0; transform: rotate(90deg) scale(.4); }
+.is-night .night__moon { opacity: 1; transform: none; }
+.night:hover svg { filter: drop-shadow(-1.5px 0 rgb(0 110 255 / .6)) drop-shadow(1.5px 0 rgb(255 40 40 / .6)) drop-shadow(0 1px rgb(0 190 90 / .5)) drop-shadow(0 -1px rgb(255 205 0 / .5)); }
+.social .night, .nav__panel .social .night { width: 38px; height: 38px; padding: 0; margin-left: 4px; background: rgb(0 0 0 / .06); }
+.is-night .social .night { background: rgb(255 255 255 / .1); }
+
+/* Logo en el botón de inicio */
+.nav__iris img { object-position: 50% 52%; transform: scale(2.2); filter: grayscale(1) contrast(1.8); }
+
+/* Menús laterales: todos a la izquierda y con la misma piel (escala de enfoque + aguja) */
+@media (min-width: 820px) {
+.side, .ap__ring.ap__barrel { left: var(--gut); right: auto; top: 50%; transform: translateY(-50%); width: var(--side-w); padding: 4px 0 4px 22px; }
+.side::before, .ap__barrel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 9px; background: repeating-linear-gradient(var(--ink) 0 1px, transparent 1px 7px); opacity: .35; -webkit-mask-image: linear-gradient(90deg, #000 30%, transparent); mask-image: linear-gradient(90deg, #000 30%, transparent); }
+.side__item, .ap__barrel a { position: relative; display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 4px 0; border-radius: 0; background: none !important; color: var(--ink) !important; font-size: 10px; text-transform: uppercase; opacity: .42; transition: opacity .3s, transform .5s var(--expo); }
+.side__item:hover, .ap__barrel a:hover { opacity: .8; transform: translateX(3px); }
+.side__item.is-active, .ap__barrel a.is-on { opacity: 1; }
+.side__item.is-active::before, .ap__barrel a.is-on::before { content: ''; position: absolute; left: -26px; top: 50%; width: 18px; height: 1.5px; margin: 0; background: var(--ink); box-shadow: 0 -2px 0 rgb(0 110 255 / .55), 0 2px 0 rgb(255 40 40 / .55), 0 3.5px 0 rgb(255 205 0 / .4); }
+.side__n, .ap__barrel a span:first-child { font-size: 9px; color: var(--mute); }
+.ap__barrel { display: block; gap: 0; }
+.ap__barrel .ap__bk, .ap__barrel .ap__bscale, .ap__barrel .ap__needle { display: none; }
+.ap__barrel .ap__bbody { display: block; }
+.ap__barrel ol { display: flex; flex-direction: column; gap: 0; }
+.ap__barrel a { display: flex; }
+.ap__barrel a em { order: 2; margin-left: auto; font-size: 9px; color: var(--mute) !important; opacity: 1 !important; }
+}
+@media (min-width: 820px) { .ap { padding: 0 var(--gut) 0 calc(var(--gut) * 2 + var(--side-w) + 10px) !important; } }
+.reels { right: var(--gut); }
+@media (max-width: 819px) {
+  .ap__ring.ap__barrel { display: none; }
+  .side::before { content: none; }
+  .side__item.is-active::before { content: none; }
+  .ap .ap__s:last-child { padding-bottom: calc(var(--dock) + 30px); }
+}
+
+/* About: el retrato entero, con aire */
+.ap__eye { background: #f2f2f0; }
+.nav__iris img { object-position: 48% 56%; transform: scale(2.4); filter: grayscale(1) contrast(5) brightness(1.05); }
+.is-night .nav__iris img { filter: grayscale(1) contrast(5) brightness(1.05) invert(1); }
+@media (max-width: 819px) { .nav__panel { background: var(--paper) !important; backdrop-filter: none; -webkit-backdrop-filter: none; } }
