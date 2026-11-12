@@ -40,7 +40,18 @@ export function mountDesign(root) {
   const buttons = [...slot.querySelectorAll('[data-mode]')];
   // Un solo índice para las dos vistas, siempre en el mismo sitio (centro derecha)
   let off = null, api = null;
-  const index = createIndex(root, DESIGN, { onPick: i => api?.go(i) });
+  // Columna izquierda: Arco/Túnel arriba (en la barra), la descripción y debajo el índice.
+  // Pasar el ratón por un nombre lleva hasta ese proyecto, como en Advertising
+  const col = document.createElement('div');
+  col.className = 'dcol';
+  root.append(col);
+  let hoverT = 0;
+  const index = createIndex(root, DESIGN, {
+    onEnter: i => { clearTimeout(hoverT); hoverT = setTimeout(() => api?.go(i), 90); },
+    onLeave: () => clearTimeout(hoverT),
+    onPick: i => api?.go(i),
+  });
+  col.append(root.querySelector('.side'));
   const show = m => {
     mode = m;
     try { localStorage.setItem('dd-design', m); } catch {}
@@ -49,12 +60,12 @@ export function mountDesign(root) {
     closeLightbox();
     stage.innerHTML = '';
     root.classList.toggle('is-tunel', m === 'tunel');
-    api = m === 'tunel' ? mountTunnel(stage, { open: openProject, index }) : mountArco(stage, index);
+    api = m === 'tunel' ? mountTunnel(stage, { open: openProject, index }) : mountArco(stage, index, col);
     off = api.off;
   };
   buttons.forEach(b => b.addEventListener('click', () => { if (b.dataset.mode !== mode) show(b.dataset.mode); }));
   show(mode);
-  return () => { off?.(); closeLightbox(); };
+  return () => { off?.(); clearTimeout(hoverT); closeLightbox(); };
 }
 
 // Mini guía: una tarjeta con un punto que se mueve en el sentido del gesto
@@ -63,7 +74,7 @@ const guide = () => `<div class="dguide" aria-hidden="true">
   <span class="dguide__g is-y"><i><b></b></i><small>Fotos</small></span>
 </div>`;
 
-function mountArco(host, index) {
+function mountArco(host, index, col) {
   host.insertAdjacentHTML('beforeend', `<div class="ar" id="ar" data-gesture="xy">
       <div class="ar__stage">${DESIGN.map((d, i) => `
         <div class="ar__p" data-i="${i}">${d.slides.map((src, k) => `<button type="button" class="ar__s" data-k="${k}"><img src="${thumb(src, k ? 520 : 760)}" data-k="${k}" alt="" draggable="false"></button>`).join('')}</div>`).join('')}
@@ -75,7 +86,9 @@ function mountArco(host, index) {
       </div>
       ${guide()}
     </div>`);
-  const ar = host.querySelector('#ar'), $ = s => host.querySelector(s);
+  const ar = host.querySelector('#ar'), $ = s => col.querySelector(s) || host.querySelector(s);
+  const infoEl = ar.querySelector('.ar__info');
+  col.prepend(infoEl);
   const ps = [...ar.querySelectorAll('.ar__p')].map((el, i) => ({ el, i, ss: [...el.children], open: 0, v: 0, tv: 0 }));
   let p = 0, tp = 0, cur = -1, mx = 0, my = 0, tmx = 0, tmy = 0, settle = 0;
   const go = i => { tp += wrap(i - mod(tp, N), N); };
@@ -194,5 +207,5 @@ function mountArco(host, index) {
     dots.style.opacity = cur >= 0 ? ps[cur].open.toFixed(2) : 0;
     if (cur >= 0) { const k = mod(Math.round(ps[cur].tv), DESIGN[cur].slides.length); if (k !== lastK) { lastK = k; info(); } }
   });
-  return { go, off: () => { stop(); offDrag(); clearTimeout(wt); ar.removeEventListener('wheel', onWheel); removeEventListener('pointermove', onMove); removeEventListener('keydown', onKey); removeEventListener('resize', size); } };
+  return { go, off: () => { infoEl.remove(); stop(); offDrag(); clearTimeout(wt); ar.removeEventListener('wheel', onWheel); removeEventListener('pointermove', onMove); removeEventListener('keydown', onKey); removeEventListener('resize', size); } };
 }

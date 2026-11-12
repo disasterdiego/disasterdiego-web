@@ -442,8 +442,8 @@ function build() {
     if (e.key === 'o' || e.key === 'O') order();
     if (e.key === 'Escape') toggle(false);
   });
-  addEventListener('hashchange', () => { if (on || ordering) { clearNow(); order.done = null; } });
-  ticker.add(step);
+  addEventListener('hashchange', () => { if (on || ordering) { clearNow(); order.done = null; on = false; freeze(false); layer.hidden = bar.hidden = true; document.body.classList.remove('dz-on'); btn?.classList.remove('is-on'); btn?.setAttribute('aria-pressed', 'false'); } });
+  ticker.add(step, { always: true });
 }
 function setTool(t) {
   tool = t;
@@ -491,6 +491,14 @@ function up() {
   spraying = false;
 }
 
+// La web se congela tal cual está: lo que rompes es lo que ves, nada se mueve debajo
+let paused = [];
+function freeze(on) {
+  ticker.frozen = on;
+  if (on) { paused = [...document.querySelectorAll('.view video, .lb video')].filter(v => !v.paused); paused.forEach(v => v.pause()); }
+  else { paused.forEach(v => v.isConnected && v.play().catch(() => {})); paused = []; }
+  document.body.classList.toggle('dz-frozen', on);
+}
 export function toggle(force) {
   const next = force ?? !on;
   if (next === on) return;
@@ -500,6 +508,7 @@ export function toggle(force) {
   if (next) {
     if (document.body.classList.contains('menu-open')) document.getElementById('menu-toggle')?.click();
     on = true;
+    freeze(true);
     layer.hidden = bar.hidden = false;
     document.body.classList.add('dz-on', 'dz-enter');
     setTimeout(() => document.body.classList.remove('dz-enter'), 700);
@@ -510,6 +519,7 @@ export function toggle(force) {
   } else {
     order(() => {
       on = false;
+      freeze(false);
       layer.hidden = bar.hidden = true;
       document.body.classList.remove('dz-on');
     });

@@ -116,7 +116,7 @@ if (finePointer) {
     if (!maps.has(key)) maps.set(key, glassMap(w, h, r));
     lgMap.setAttribute('href', maps.get(key));
     lgMap.setAttribute('width', w); lgMap.setAttribute('height', h);
-    document.querySelectorAll('#lg feDisplacementMap').forEach(d => d.setAttribute('scale', glass));
+    document.querySelectorAll('#lg feDisplacementMap').forEach((d, k) => d.setAttribute('scale', (glass * [1, .86, .72][k]).toFixed(1)));
   };
   onCursorChange(c => { cfg = c; setLens(c.w, c.h, c.r, c.glass); });
 
@@ -144,7 +144,7 @@ if (finePointer) {
     const down = document.body.classList.contains('cursor-down');
     // En la home la lente grande ya está: la gota es un punto que crece junto a los botones
     const dot = home && !ui;
-    const want = dot ? 6 : ui ? 44 : cfg.w;
+    const want = dot ? 6 : ui ? 54 : cfg.w;
     const px = x, py = y;
     x = damp(x, tx, 18, dt); y = damp(y, ty, 18, dt);
     const ux = (x - px) / Math.max(dt, .001), uy = (y - py) / Math.max(dt, .001), sp = Math.hypot(ux, uy);
@@ -157,14 +157,19 @@ if (finePointer) {
     cursor.style.setProperty('--cw', `${sz.toFixed(1)}px`);
     cursor.style.setProperty('--ch', `${sz.toFixed(1)}px`);
     cursor.style.setProperty('--cr', `${(sz / 2).toFixed(1)}px`);
-    cursor.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%) rotate(${a.toFixed(3)}rad) scale(${((1 + s) * k).toFixed(3)},${((1 - s * .45) * k).toFixed(3)})`;
+    // Con texto, la pastilla va recta; sin texto, la gota se estira con la velocidad
+    const label = document.body.classList.contains('cursor-label');
+    cursor.style.transform = label
+      ? `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%)`
+      : `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%) rotate(${a.toFixed(3)}rad) scale(${((1 + s) * k).toFixed(3)},${((1 - s * .45) * k).toFixed(3)})`;
+    cursor.style.setProperty('--ca', `${(1.5 + s * 9).toFixed(1)}px`);
     const show = hintOn && !!g && !ui && !home && !document.body.classList.contains('cursor-label');
     hint.classList.toggle('is-on', show);
     if (show) {
       if (hint.dataset.g !== g) { hint.dataset.g = g; hWord.textContent = WORD[g] || ''; }
       hint.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`;
     }
-  });
+  }, { always: true });
 }
 document.addEventListener('click', e => { if (e.target.closest?.('a,button')) sound.click(); }, true);
 

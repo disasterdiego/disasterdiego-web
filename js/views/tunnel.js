@@ -18,7 +18,7 @@ export function mountTunnel(host, { open, index }) {
   host.insertAdjacentHTML('beforeend', `<div class="tn" id="tn" data-gesture="z">
     <div class="tn__space">${items.map((it, j) => `<button type="button" class="tn__i" data-j="${j}"><img src="${thumb(it.src, 420)}" data-k="${it.k}" alt="" draggable="false" loading="lazy"></button>`).join('')}</div>
     <p class="tn__name" id="tn-name"></p>
-    <div class="tn__lens" id="tn-lens" aria-hidden="true">${[0, 1].map(() => `<svg viewBox="0 0 120 120"><circle class="tn__ring" cx="60" cy="60" r="56"/><g class="tn__ticks">${Array.from({ length: 36 }, (_, t) => `<line x1="60" y1="${t % 3 ? 8 : 5}" x2="60" y2="13" transform="rotate(${t * 10} 60 60)"/>`).join('')}</g><circle class="tn__iris" cx="60" cy="60" r="30"/><text x="60" y="64" text-anchor="middle"></text></svg>`).join('')}</div>
+    <div class="tn__lens" id="tn-lens" aria-hidden="true">${[0, 1].map(() => `<svg viewBox="0 0 1000 1000"><circle class="tn__ring" cx="500" cy="500" r="492"/><g class="tn__ticks">${Array.from({ length: 120 }, (_, t) => `<line x1="500" y1="${t % 5 ? 14 : 8}" x2="500" y2="${t % 5 ? 30 : 46}" transform="rotate(${t * 3} 500 500)"/>`).join('')}</g><circle class="tn__iris" cx="500" cy="500" r="440"/></svg>`).join('')}<span class="tn__read is-l"></span><span class="tn__read is-r"></span></div>
     <button type="button" class="tn__toggle" id="tn-toggle" data-cursor-ui aria-pressed="true">◎ Lente</button>
     <div class="dguide dguide--tn" aria-hidden="true"><span class="dguide__g is-z"><i><b></b></i><small>${isNarrow() ? 'Desliza para avanzar' : 'Rueda o pellizca para avanzar'}</small></span></div>
   </div>`);
@@ -34,7 +34,7 @@ export function mountTunnel(host, { open, index }) {
   const used = () => tn.classList.add('is-used');
   // Micrográficos de lente a los lados: giran con la profundidad; se pueden quitar
   const lens = tn.querySelector('#tn-lens'), toggle = tn.querySelector('#tn-toggle');
-  const ticks = [...lens.querySelectorAll('.tn__ticks')], iris = [...lens.querySelectorAll('.tn__iris')], txt = [...lens.querySelectorAll('text')];
+  const ticks = [...lens.querySelectorAll('.tn__ticks')], iris = [...lens.querySelectorAll('.tn__iris')], txt = [...lens.querySelectorAll('.tn__read')];
   let lensOn = true;
   try { lensOn = localStorage.getItem('dd-tn-lens') !== '0'; } catch {}
   const setLensOn = on => { lensOn = on; lens.hidden = !on; toggle.setAttribute('aria-pressed', on); toggle.classList.toggle('is-off', !on); try { localStorage.setItem('dd-tn-lens', on ? '1' : '0'); } catch {} };
@@ -102,8 +102,8 @@ export function mountTunnel(host, { open, index }) {
     if (show !== near) { near = show; name.textContent = show >= 0 ? label(show) : ''; if (show >= 0) index?.setActive(items[show].i); }
     if (lensOn) {
       const v = Math.min(Math.abs(tz - z) / 900, 1);
-      ticks.forEach((t, q) => t.setAttribute('transform', `rotate(${((q ? -z : z) * .05).toFixed(1)} 60 60)`));
-      iris.forEach(c => c.setAttribute('r', (30 - v * 16).toFixed(1)));
+      ticks.forEach((t, q) => t.setAttribute('transform', `rotate(${((q ? -z : z) * .02).toFixed(2)} 500 500)`));
+      iris.forEach(c => c.setAttribute('r', (440 - v * 60).toFixed(1)));
       txt.forEach((t, q) => { t.textContent = q ? `${pad(mod(Math.round(z / GAP), n) + 1)}/${n}` : `F/${(1.4 + v * 6).toFixed(1)}`; });
     }
   });

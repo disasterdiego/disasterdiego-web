@@ -23,11 +23,14 @@ let last = 0, running = false;
 function frame(t) {
   const dt = Math.min((t - last) / 1000, 0.05);
   last = t;
-  jobs.forEach(fn => fn(dt, t / 1000));
+  // Congelado (modo Disaster): solo siguen las tareas marcadas como «always»
+  jobs.forEach(fn => { if (!ticker.frozen || fn.always) fn(dt, t / 1000); });
   if (jobs.size) requestAnimationFrame(frame); else running = false;
 }
 export const ticker = {
-  add(fn) {
+  frozen: false,
+  add(fn, { always = false } = {}) {
+    fn.always = always;
     jobs.add(fn);
     if (!running) { running = true; last = performance.now(); requestAnimationFrame(frame); }
     return () => jobs.delete(fn);

@@ -2,7 +2,7 @@
 // Ahora solo hay uno: una gota de cristal que se estira con el movimiento.
 // scale: tamaño de la lente de la home con ese cursor.
 export const CURSORS = [
-  { id: 'gota', name: 'Gota', w: 34, h: 34, r: 17, scale: 1, glass: 14 },
+  { id: 'gota', name: 'Gota', w: 44, h: 44, r: 22, scale: 1, glass: 20 },
 ];
 let i = 0;
 try { i = Math.max(0, CURSORS.findIndex(c => c.id === localStorage.getItem('dd-cursor3'))); } catch {}
