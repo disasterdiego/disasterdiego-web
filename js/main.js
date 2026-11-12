@@ -3,7 +3,7 @@ import { ticker, lerp, damp, finePointer, reduced, esc, opt } from './lib.js';
 import { initFx, fxHide } from './fx.js';
 import { initScan } from './scan.js';
 import { sound } from './sound.js';
-import { cursorMode, cursorIndex, nextCursor, onCursorChange, glassMap, CURSORS } from './cursor-mode.js';
+import { onCursorChange, glassMap } from './cursor-mode.js';
 import { mountHome } from './views/home.js';
 import { mountAdvertising } from './views/advertising.js';
 import { mountDesign } from './views/design.js';
@@ -76,26 +76,38 @@ export function setBarSlot(html) {
 
 // ---------- Cursor ----------
 const cursor = $('cursor');
-cursor.innerHTML = '<i class="cursor__deco" aria-hidden="true"><b></b><b></b><b></b><b></b><em></em></i><span class="cursor__label"></span>';
-const cLabel = cursor.querySelector('.cursor__label'), cWord = cursor.querySelector('.cursor__deco em');
+cursor.innerHTML = '<span class="cursor__label"></span>';
+const cLabel = cursor.querySelector('.cursor__label');
+// Pista de gesto: flechas y una palabra junto a la gota. Aparece al entrar en una página
+// y se va sola a los pocos segundos o en cuanto se hace el gesto; vuelve al regresar.
+const hint = document.createElement('div');
+hint.className = 'chint';
+hint.setAttribute('aria-hidden', 'true');
+hint.innerHTML = '<b></b><b></b><b></b><b></b><em></em>';
+document.body.append(hint);
+const hWord = hint.querySelector('em');
 export function setCursorLabel(html) {
   cLabel.innerHTML = html || '';
   document.body.classList.toggle('cursor-label', !!html);
 }
-// Lo que se hace en cada página: arrastrar en los dos ejes, scroll vertical, zoom…
-// Una zona puede pedir el suyo con data-gesture.
 const GESTURE = { advertising: 'xy', design: 'xy', content: 'y', about: 'y', project: 'y' };
-const WORD = { x: 'Desliza', y: 'Scroll', xy: 'Arrastra', z: 'Zoom' };
+const WORD = { x: 'Desliza', y: 'Scroll', xy: 'Arrastra', z: 'Avanza' };
+let hintOn = false, hintT = 0;
+const hintOff = () => { hintOn = false; clearTimeout(hintT); hint.classList.remove('is-on'); };
+function resetHint() {
+  hintOn = true;
+  clearTimeout(hintT);
+  hintT = setTimeout(hintOff, 4500);
+}
 if (finePointer) {
   document.documentElement.classList.add('has-cursor');
-  // Cristal líquido: en Chrome refracta de verdad lo que hay debajo (filtro #lg) con el
-  // color separado; en el resto de navegadores, cristal saturado con el filo en color
+  // Cristal líquido: en Chrome refracta de verdad lo que hay debajo (filtro #lg), sin
+  // separar el color; en el resto de navegadores, cristal saturado
   const liquid = !!window.chrome && CSS.supports('backdrop-filter', 'url(#lg)');
   document.documentElement.classList.toggle('has-liquid', liquid);
   const lgMap = $('lg-map');
   const maps = new Map();
   let cfg = null, lens = '';
-  // Mapa de refracción para la forma de la lente (se guarda para no recalcularlo)
   const setLens = (w, h, r, glass) => {
     const key = `${w}x${h}x${r}`;
     if (!liquid || key === lens) return;
@@ -103,66 +115,54 @@ if (finePointer) {
     if (!maps.has(key)) maps.set(key, glassMap(w, h, r));
     lgMap.setAttribute('href', maps.get(key));
     lgMap.setAttribute('width', w); lgMap.setAttribute('height', h);
-    document.querySelectorAll('#lg feDisplacementMap').forEach((d, k) => d.setAttribute('scale', (glass * [1, .86, .72][k]).toFixed(1)));
+    document.querySelectorAll('#lg feDisplacementMap').forEach(d => d.setAttribute('scale', glass));
   };
   onCursorChange(c => { cfg = c; setLens(c.w, c.h, c.r, c.glass); });
 
-  let tx = innerWidth / 2, ty = innerHeight / 2, x = tx, y = ty, s = 0, k = 1, cw = 56, ch = 56, cr = 28;
-  let ui = null, media = null, text = false, lastUi = null;
-  addEventListener('pointermove', e => { tx = e.clientX; ty = e.clientY; }, { passive: true });
+  let tx = innerWidth / 2, ty = innerHeight / 2, x = tx, y = ty, s = 0, a = 0, k = 1, sz = 34, g = '', ui = null, lastUi = null, dx0 = 0, dy0 = 0;
+  addEventListener('pointermove', e => {
+    tx = e.clientX; ty = e.clientY;
+    // Si ya arrastra, la pista sobra
+    if (hintOn && document.body.classList.contains('cursor-down') && Math.hypot(tx - dx0, ty - dy0) > 40) hintOff();
+  }, { passive: true });
+  addEventListener('wheel', e => { if (hintOn && Math.abs(e.deltaX) + Math.abs(e.deltaY) > 30) hintOff(); }, { passive: true });
   document.addEventListener('pointerover', e => {
-    const t = e.target;
-    const zone = t.closest?.('[data-gesture]');
-    // Dentro de una zona de arrastre, las piezas sin data-cursor-ui son parte del gesto
+    const t = e.target, zone = t.closest?.('[data-gesture]');
     let u = t.closest?.('a,button,[data-cursor-ui]') || null;
     if (u && zone && zone.contains(u) && !u.hasAttribute('data-cursor-ui')) u = null;
     ui = u;
-    media = !ui ? t.closest?.('img,video,canvas,figure,.ar__s,.tn__i') || null : null;
-    text = !ui && !media && !!t.closest?.('p,h1,h2,h3,h4,li,blockquote,dd');
-    const g = ui ? '' : zone ? zone.dataset.gesture : GESTURE[document.body.dataset.route] || '';
-    cursor.dataset.g = g;
-    cWord.textContent = WORD[g] || '';
+    g = ui ? '' : zone ? zone.dataset.gesture : GESTURE[document.body.dataset.route] || '';
     document.body.classList.toggle('cursor-ui', !!ui);
     if (ui && ui !== lastUi) sound.tick();
     lastUi = ui;
   });
-  addEventListener('pointerdown', () => document.body.classList.add('cursor-down'));
+  addEventListener('pointerdown', e => { dx0 = e.clientX; dy0 = e.clientY; document.body.classList.add('cursor-down'); });
   addEventListener('pointerup', () => document.body.classList.remove('cursor-down'));
   ticker.add(dt => {
-    const m = cfg.id, down = document.body.classList.contains('cursor-down');
-    let w = cfg.w, h = cfg.h, r = cfg.r, cx = tx, cy = ty, snap = null, caret = false;
-    // Imán: se pega al botón y lo abraza. Enfoque: encuadra la foto o el botón como un AF
-    const el = m === 'iman' ? ui : m === 'af' ? ui || media : null;
-    if (el) {
-      const b = el.getBoundingClientRect();
-      if (b.width && b.width < innerWidth * .7 && b.height < innerHeight * .8) {
-        const p = m === 'iman' ? 7 : 5, mx = b.left + b.width / 2, my = b.top + b.height / 2;
-        w = b.width + p * 2; h = b.height + p * 2; r = m === 'iman' ? Math.min(h / 2, 22) : 4;
-        cx = mx + (tx - mx) * (m === 'iman' ? .12 : 0); cy = my + (ty - my) * (m === 'iman' ? .12 : 0);
-        snap = m;
-      }
+    const home = document.body.dataset.route === 'home' && !document.body.classList.contains('menu-open');
+    const down = document.body.classList.contains('cursor-down');
+    // En la home la lente grande ya está: la gota es un punto que crece junto a los botones
+    const dot = home && !ui;
+    const want = dot ? 6 : ui ? 44 : cfg.w;
+    const px = x, py = y;
+    x = damp(x, tx, 18, dt); y = damp(y, ty, 18, dt);
+    const ux = (x - px) / Math.max(dt, .001), uy = (y - py) / Math.max(dt, .001), sp = Math.hypot(ux, uy);
+    s = damp(s, dot ? 0 : Math.min(sp / 2600, .45), 10, dt);
+    if (sp > 40) a = Math.atan2(uy, ux);
+    k = damp(k, down ? .82 : 1, 14, dt);
+    sz = damp(sz, want, 14, dt);
+    if (!dot) setLens(Math.round(want), Math.round(want), Math.round(want / 2), cfg.glass);
+    cursor.classList.toggle('is-dot', dot);
+    cursor.style.setProperty('--cw', `${sz.toFixed(1)}px`);
+    cursor.style.setProperty('--ch', `${sz.toFixed(1)}px`);
+    cursor.style.setProperty('--cr', `${(sz / 2).toFixed(1)}px`);
+    cursor.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%) rotate(${a.toFixed(3)}rad) scale(${((1 + s) * k).toFixed(3)},${((1 - s * .45) * k).toFixed(3)})`;
+    const show = hintOn && !!g && !ui && !home && !document.body.classList.contains('cursor-label');
+    hint.classList.toggle('is-on', show);
+    if (show) {
+      if (hint.dataset.g !== g) { hint.dataset.g = g; hWord.textContent = WORD[g] || ''; }
+      hint.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`;
     }
-    // Lupa: grande sobre las fotos, una línea sobre el texto, un punto sobre los botones
-    if (m === 'lupa') {
-      if (media) { w = h = 132; r = 66; }
-      else if (ui) { w = h = 16; r = 8; }
-      else if (text) { w = 3; h = 26; r = 2; caret = true; }
-    }
-    if (m === 'cruz' && ui) { w = h = 38; r = 19; }
-    if (!snap) setLens(w, h, Math.min(r, w / 2, h / 2), cfg.glass);
-    const f = snap ? 16 : 20;
-    x = damp(x, cx, f, dt); y = damp(y, cy, f, dt);
-    cw = damp(cw, w, 16, dt); ch = damp(ch, h, 16, dt); cr = damp(cr, r, 16, dt);
-    const sp = Math.hypot(tx - x, ty - y);
-    s = damp(s, Math.min(sp / 90, 1), 10, dt);
-    k = damp(k, down ? .86 : 1, 14, dt);
-    cursor.classList.toggle('is-snap', !!snap);
-    cursor.classList.toggle('is-caret', caret);
-    cursor.style.setProperty('--cw', `${cw.toFixed(1)}px`);
-    cursor.style.setProperty('--ch', `${ch.toFixed(1)}px`);
-    cursor.style.setProperty('--cr', `${cr.toFixed(1)}px`);
-    cursor.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%) scale(${k.toFixed(3)})`;
-    cursor.style.setProperty('--ca', `${(1.5 + s * 7).toFixed(1)}px`);
   });
 }
 document.addEventListener('click', e => { if (e.target.closest?.('a,button')) sound.click(); }, true);
@@ -195,6 +195,7 @@ function swap(route) {
   document.querySelectorAll('[data-world]').forEach(n => n.classList.toggle('is-active', n.dataset.world === active));
   destroy = MOUNT[route.name](view, route);
   currentKey = route.key;
+  resetHint();
 }
 
 const wait = ms => new Promise(r => setTimeout(r, reduced ? 20 : ms));
@@ -209,14 +210,7 @@ const lensFor = route => {
   return `${[24, 28, 35, 50, 85, 105][h % 6]}MM · F/${['1.4', '2.0', '2.8', '4'][(h >> 3) % 4]}`;
 };
 const hud = $('hud'), hudC = $('hud-c');
-const showCursor = () => { hudC.textContent = `Cursor ${cursorIndex() + 1}/${CURSORS.length} · ${cursorMode().name}`; };
-showCursor();
-hud.addEventListener('click', () => {
-  nextCursor();
-  showCursor();
-  hud.classList.remove('is-flash'); void hud.offsetWidth; hud.classList.add('is-flash');
-  sound.shutter();
-});
+// Solo queda un cursor: la hora y la lente ya no cambian de cursor
 const clock = () => { hudT.textContent = `MAD ${new Date().toLocaleTimeString('es-ES', { hour12: false, timeZone: 'Europe/Madrid' })}`; };
 clock();
 setInterval(clock, 1000);

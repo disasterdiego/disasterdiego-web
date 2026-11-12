@@ -1,12 +1,8 @@
 // Cursores de cristal líquido: el botón de abajo a la izquierda cambia de uno a otro.
-// Todos llevan la lente con el color separado; cambia cómo reaccionan a lo que hay debajo.
+// Ahora solo hay uno: una gota de cristal que se estira con el movimiento.
 // scale: tamaño de la lente de la home con ese cursor.
 export const CURSORS = [
-  { id: 'cruz', name: 'Cruceta', w: 56, h: 56, r: 28, scale: 1, glass: 24 },
-  { id: 'gesto', name: 'Gesto', w: 64, h: 64, r: 32, scale: 1, glass: 26 },
-  { id: 'iman', name: 'Imán', w: 44, h: 44, r: 22, scale: 1, glass: 20 },
-  { id: 'af', name: 'Enfoque', w: 50, h: 50, r: 10, scale: .9, glass: 20 },
-  { id: 'lupa', name: 'Lupa', w: 58, h: 58, r: 29, scale: 1.3, glass: 28 },
+  { id: 'gota', name: 'Gota', w: 34, h: 34, r: 17, scale: 1, glass: 14 },
 ];
 let i = 0;
 try { i = Math.max(0, CURSORS.findIndex(c => c.id === localStorage.getItem('dd-cursor3'))); } catch {}

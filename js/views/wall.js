@@ -29,7 +29,7 @@ void main(){
   vFold = (sin(q.x*.019-uT*2.6+ph)*.7+n1*.8)*v*amp;
   vec2 n = p/(uRes*.5);
   // Ojo de pez del mapa: todo se curva hacia los bordes
-  p *= 1. - uFish*.2*dot(n,n);
+  p *= 1. - uFish*.12*dot(n,n);
   vec2 clip = p/(uRes*.5);
   vClip = clip;
   gl_Position = vec4(clip.x,-clip.y,0.,1.+z*.12);
@@ -286,7 +286,7 @@ export function mountWall(root, { row = false, index } = {}) {
       if (Math.abs(x) > W / 2 + w0 || Math.abs(y) > H / 2 + h0 * 1.5) continue;
       const dist = Math.hypot(x, y), r = dist / maxD;
       if (dist < nd) { nd = dist; nearest = c; }
-      const intensity = row ? .4 : .32 + fish * .68;
+      const intensity = row ? .4 : isNarrow() ? .14 + fish * .22 : .26 + fish * .44;
       const sc = 1 - r * r * .2 * intensity;
       const k = 1 - intensity * .16 * ((x * x) / (W * W / 4) + (y * y) / (H * H / 4));
       drawn.push({ c, x, y, w: w0 * sc, h: h0 * sc, intensity, px: x * k, py: y * k, dist });

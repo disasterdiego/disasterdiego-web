@@ -38,7 +38,9 @@ export function mountDesign(root) {
     </div>`);
   const stage = root.querySelector('#dstage');
   const buttons = [...slot.querySelectorAll('[data-mode]')];
-  let off = null;
+  // Un solo índice para las dos vistas, siempre en el mismo sitio (centro derecha)
+  let off = null, api = null;
+  const index = createIndex(root, DESIGN, { onPick: i => api?.go(i) });
   const show = m => {
     mode = m;
     try { localStorage.setItem('dd-design', m); } catch {}
@@ -46,9 +48,9 @@ export function mountDesign(root) {
     off?.();
     closeLightbox();
     stage.innerHTML = '';
-    root.querySelectorAll('.side').forEach(n => n.remove());
     root.classList.toggle('is-tunel', m === 'tunel');
-    off = m === 'tunel' ? mountTunnel(stage, { open: openProject }) : mountArco(stage, root);
+    api = m === 'tunel' ? mountTunnel(stage, { open: openProject, index }) : mountArco(stage, index);
+    off = api.off;
   };
   buttons.forEach(b => b.addEventListener('click', () => { if (b.dataset.mode !== mode) show(b.dataset.mode); }));
   show(mode);
@@ -61,7 +63,7 @@ const guide = () => `<div class="dguide" aria-hidden="true">
   <span class="dguide__g is-y"><i><b></b></i><small>Fotos</small></span>
 </div>`;
 
-function mountArco(host, root) {
+function mountArco(host, index) {
   host.insertAdjacentHTML('beforeend', `<div class="ar" id="ar" data-gesture="xy">
       <div class="ar__stage">${DESIGN.map((d, i) => `
         <div class="ar__p" data-i="${i}">${d.slides.map((src, k) => `<button type="button" class="ar__s" data-k="${k}"><img src="${thumb(src, k ? 520 : 760)}" data-k="${k}" alt="" draggable="false"></button>`).join('')}</div>`).join('')}
@@ -77,7 +79,6 @@ function mountArco(host, root) {
   const ps = [...ar.querySelectorAll('.ar__p')].map((el, i) => ({ el, i, ss: [...el.children], open: 0, v: 0, tv: 0 }));
   let p = 0, tp = 0, cur = -1, mx = 0, my = 0, tmx = 0, tmy = 0, settle = 0;
   const go = i => { tp += wrap(i - mod(tp, N), N); };
-  const index = createIndex(root, DESIGN, { onPick: go });
   // La guía se va sola en cuanto se usa el gesto (en escritorio se queda, más tenue)
   const used = () => ar.classList.add('is-used');
 
@@ -101,9 +102,9 @@ function mountArco(host, root) {
   };
   const size = () => {
     const narrow = isNarrow(), H = ar.clientHeight;
-    const cw = narrow ? Math.min(ar.clientWidth * .6, H * .36) : Math.min(H * .4, 360);
+    const cw = narrow ? Math.min(ar.clientWidth * .5, H * .3) : Math.min(H * .3, 260);
     ar.style.setProperty('--cw', `${cw}px`);
-    ar.style.setProperty('--sp', `${narrow ? cw * .95 : cw * 1.1}px`);
+    ar.style.setProperty('--sp', `${narrow ? cw * 1.05 : cw * 1.25}px`);
   };
   size();
   addEventListener('resize', size);
@@ -193,5 +194,5 @@ function mountArco(host, root) {
     dots.style.opacity = cur >= 0 ? ps[cur].open.toFixed(2) : 0;
     if (cur >= 0) { const k = mod(Math.round(ps[cur].tv), DESIGN[cur].slides.length); if (k !== lastK) { lastK = k; info(); } }
   });
-  return () => { stop(); offDrag(); clearTimeout(wt); ar.removeEventListener('wheel', onWheel); removeEventListener('pointermove', onMove); removeEventListener('keydown', onKey); removeEventListener('resize', size); };
+  return { go, off: () => { stop(); offDrag(); clearTimeout(wt); ar.removeEventListener('wheel', onWheel); removeEventListener('pointermove', onMove); removeEventListener('keydown', onKey); removeEventListener('resize', size); } };
 }
