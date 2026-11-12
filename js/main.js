@@ -4,6 +4,7 @@ import { initFx, fxHide } from './fx.js';
 import { initScan } from './scan.js';
 import { sound } from './sound.js';
 import { onCursorChange, glassMap } from './cursor-mode.js';
+import { initDisaster } from './disaster.js';
 import { mountHome } from './views/home.js';
 import { mountAdvertising } from './views/advertising.js';
 import { mountDesign } from './views/design.js';
@@ -243,9 +244,11 @@ nightBtn.addEventListener('click', toggleNight);
 // En móvil el botón vive junto a las redes
 const mqNarrow = matchMedia('(max-width: 819px)');
 // y las redes dentro del desplegable: abajo solo queda la pastilla centrada
+// Modo Disaster: su botón va junto al sol/luna
+const dzBtn = initDisaster();
 const placeNight = () => {
-  if (mqNarrow.matches) { $('socials').append(nightBtn); $('nav-panel').append($('socials')); }
-  else { hud.after(nightBtn); $('bar').after($('socials')); }
+  if (mqNarrow.matches) { $('socials').append(dzBtn, nightBtn); $('nav-panel').append($('socials')); }
+  else { hud.after(dzBtn, nightBtn); $('bar').after($('socials')); }
 };
 placeNight();
 mqNarrow.addEventListener?.('change', placeNight);

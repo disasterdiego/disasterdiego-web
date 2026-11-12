@@ -63,7 +63,8 @@ export const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;',
 
 // --- WebGL ---
 export function getGL(canvas, opts = {}) {
-  const o = { alpha: true, premultipliedAlpha: true, antialias: false, powerPreference: 'high-performance', ...opts };
+  // preserveDrawingBuffer: el modo Disaster copia lo que pinta el canvas al romperlo
+  const o = { alpha: true, premultipliedAlpha: true, antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: true, ...opts };
   return canvas.getContext('webgl2', o) || canvas.getContext('webgl', o);
 }
 

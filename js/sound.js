@@ -66,5 +66,12 @@ export const sound = {
   // Obturador: dos chasquidos secos, cortinilla abre y cierra
   shutter() { noise(.035, .06, 4200, 2600); setTimeout(() => noise(.05, .045, 3000, 1500), 75); },
   // Fotocopiadora: barrido de luz y motor
+  // Modo Disaster: cristal que estalla, tijeretazo, spray, golpe sordo y derrumbe
+  smash() { noise(.42, .09, 3200, 260); tone(64, .3, .05); setTimeout(() => noise(.25, .03, 5200, 2600), 40); },
+  snip() { noise(.035, .06, 7000, 4200); setTimeout(() => noise(.04, .05, 6000, 3000), 70); },
+  psst() { noise(.14, .01, 3600, 6400); },
+  thud() { tone(92, .1, .025); },
+  rumble() { noise(1.1, .05, 180, 60); tone(48, 1, .04); },
+  rebuild() { noise(.7, .02, 400, 3600); tone(330, .25, .015); setTimeout(() => tone(495, .3, .015), 180); },
   copier() { noise(.9, .022, 600, 3400); tone(110, .8, .02); },
 };
